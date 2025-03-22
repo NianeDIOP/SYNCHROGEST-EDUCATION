@@ -80,64 +80,106 @@ class InscriptionController extends Controller
 
     public function saveNiveaux(Request $request)
     {
-        $request->validate([
-            'niveaux' => 'required|array',
-            'niveaux.*.nom' => 'required|string|max:50',
-            'niveaux.*.frais_inscription' => 'required|numeric|min:0',
-            'niveaux.*.frais_scolarite' => 'required|numeric|min:0',
-            'niveaux.*.classes' => 'array',
-            'niveaux.*.classes.*.nom' => 'required|string|max:50',
-            'niveaux.*.classes.*.capacite' => 'required|integer|min:1',
-        ]);
-
-        // Traiter les niveaux et classes
-        foreach ($request->niveaux as $niveauData) {
-            if (!isset($niveauData['nom']) || empty($niveauData['nom'])) {
-                continue; // Ignorer les niveaux sans nom
-            }
+        try {
+            // Validation plus complète
+            $request->validate([
+                'niveaux' => 'required|array',
+                'niveaux.*.nom' => 'required|string|max:50',
+                'niveaux.*.frais_inscription' => 'required|numeric|min:0',
+                'niveaux.*.frais_scolarite' => 'required|numeric|min:0',
+                'niveaux.*.classes' => 'nullable|array',
+                'niveaux.*.classes.*.nom' => 'required|string|max:50',
+                'niveaux.*.classes.*.capacite' => 'required|integer|min:1',
+            ]);
+    
+            DB::beginTransaction();
             
-            $niveau = Niveau::updateOrCreate(
-                ['id' => $niveauData['id'] ?? null],
-                [
-                    'nom' => $niveauData['nom'],
-                    'frais_inscription' => $niveauData['frais_inscription'],
-                    'frais_scolarite' => $niveauData['frais_scolarite'],
-                    'est_niveau_examen' => isset($niveauData['est_niveau_examen']),
-                    'frais_examen' => isset($niveauData['est_niveau_examen']) ? ($niveauData['frais_examen'] ?? 0) : 0,
-                ]
-            );
-
-            // Gérer les classes de ce niveau
-            if (isset($niveauData['classes']) && is_array($niveauData['classes'])) {
-                $classeIds = [];
+            // Collecter les IDs des niveaux pour vérifier la suppression
+            $niveauIds = [];
+            
+            // Traiter les niveaux et classes
+            foreach ($request->niveaux as $niveauData) {
+                if (!isset($niveauData['nom']) || empty($niveauData['nom'])) {
+                    continue; // Ignorer les niveaux sans nom
+                }
                 
-                foreach ($niveauData['classes'] as $classeData) {
-                    if (!isset($classeData['nom']) || empty($classeData['nom'])) {
-                        continue; // Ignorer les classes sans nom
+                // Debug pour voir les données reçues
+                \Log::info('Données de niveau reçues:', $niveauData);
+                
+                $niveau = Niveau::updateOrCreate(
+                    ['id' => $niveauData['id'] ? $niveauData['id'] : null],
+                    [
+                        'nom' => $niveauData['nom'],
+                        'frais_inscription' => $niveauData['frais_inscription'],
+                        'frais_scolarite' => $niveauData['frais_scolarite'],
+                        'est_niveau_examen' => isset($niveauData['est_niveau_examen']),
+                        'frais_examen' => isset($niveauData['est_niveau_examen']) ? ($niveauData['frais_examen'] ?? 0) : 0,
+                    ]
+                );
+                
+                \Log::info('Niveau créé/mis à jour:', ['id' => $niveau->id, 'nom' => $niveau->nom]);
+                
+                $niveauIds[] = $niveau->id;
+    
+                // Gérer les classes de ce niveau
+                if (isset($niveauData['classes']) && is_array($niveauData['classes'])) {
+                    $classeIds = [];
+                    
+                    foreach ($niveauData['classes'] as $classeData) {
+                        if (!isset($classeData['nom']) || empty($classeData['nom'])) {
+                            continue; // Ignorer les classes sans nom
+                        }
+                        
+                        \Log::info('Données de classe reçues:', $classeData);
+                        
+                        $classe = Classe::updateOrCreate(
+                            ['id' => $classeData['id'] ? $classeData['id'] : null],
+                            [
+                                'niveau_id' => $niveau->id,
+                                'nom' => $classeData['nom'],
+                                'capacite' => $classeData['capacite'],
+                            ]
+                        );
+                        
+                        \Log::info('Classe créée/mise à jour:', ['id' => $classe->id, 'nom' => $classe->nom]);
+                        
+                        $classeIds[] = $classe->id;
                     }
                     
-                    $classe = Classe::updateOrCreate(
-                        ['id' => $classeData['id'] ?? null],
-                        [
-                            'niveau_id' => $niveau->id,
-                            'nom' => $classeData['nom'],
-                            'capacite' => $classeData['capacite'],
-                        ]
-                    );
-                    
-                    $classeIds[] = $classe->id;
-                }
-                
-                // Supprimer les classes qui n'existent plus pour ce niveau
-                if (!empty($classeIds)) {
-                    Classe::where('niveau_id', $niveau->id)
-                        ->whereNotIn('id', $classeIds)
-                        ->delete();
+                    // Supprimer les classes qui n'existent plus pour ce niveau
+                    if (!empty($classeIds)) {
+                        $deletedClasses = Classe::where('niveau_id', $niveau->id)
+                            ->whereNotIn('id', $classeIds)
+                            ->delete();
+                        
+                        \Log::info("Classes supprimées pour le niveau {$niveau->id}:", ['count' => $deletedClasses]);
+                    }
                 }
             }
+            
+            // Supprimer les niveaux qui ont été supprimés dans l'interface
+            if (!empty($niveauIds)) {
+                $deletedNiveaux = Niveau::whereNotIn('id', $niveauIds)->delete();
+                \Log::info('Niveaux supprimés:', ['count' => $deletedNiveaux]);
+            }
+    
+            DB::commit();
+            
+            return redirect()->route('inscriptions.niveaux')
+                ->with('success', 'Niveaux et classes enregistrés avec succès');
         }
-
-        return redirect()->route('inscriptions.niveaux')->with('success', 'Niveaux et classes enregistrés avec succès');
+        catch (\Exception $e) {
+            DB::rollBack();
+            \Log::error('Erreur lors de l\'enregistrement des niveaux:', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            return redirect()->back()
+                ->withInput()
+                ->withErrors(['error' => 'Une erreur est survenue lors de l\'enregistrement: ' . $e->getMessage()])
+                ->with('error', 'Une erreur est survenue lors de l\'enregistrement. Veuillez réessayer.');
+        }
     }
 
     public function showImport()
@@ -240,25 +282,34 @@ class InscriptionController extends Controller
             ->orderBy('annee_scolaire', 'desc')
             ->get();
         
-        return response()->json(['eleve' => $eleve, 'inscriptions' => $inscriptions]);
+        return response()->json([
+            'eleve' => $eleve,
+            'inscriptions' => $inscriptions
+        ]);
     }
-
+    
     public function deleteEleve($id)
     {
-        $eleve = Eleve::findOrFail($id);
-        
-        // Vérifier si l'élève a des inscriptions
-        $hasInscriptions = Inscription::where('eleve_id', $id)->exists();
-        
-        if ($hasInscriptions) {
-            return redirect()->route('inscriptions.eleves')->with('error', 'Impossible de supprimer cet élève car il possède des inscriptions.');
+        try {
+            $eleve = Eleve::findOrFail($id);
+            
+            // Vérifier si l'élève a des inscriptions
+            $hasInscriptions = Inscription::where('eleve_id', $id)->exists();
+            
+            if ($hasInscriptions) {
+                return redirect()->route('inscriptions.eleves')
+                    ->with('error', 'Impossible de supprimer cet élève car il possède des inscriptions.');
+            }
+            
+            $eleve->delete();
+            
+            return redirect()->route('inscriptions.eleves')
+                ->with('success', 'Élève supprimé avec succès.');
+        } catch (\Exception $e) {
+            return redirect()->route('inscriptions.eleves')
+                ->with('error', 'Erreur lors de la suppression: ' . $e->getMessage());
         }
-        
-        $eleve->delete();
-        
-        return redirect()->route('inscriptions.eleves')->with('success', 'Élève supprimé avec succès.');
     }
-
     public function nouvelleInscription(Request $request)
     {
         $eleve = null;

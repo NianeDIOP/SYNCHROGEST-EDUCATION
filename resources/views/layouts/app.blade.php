@@ -3,128 +3,224 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>@yield('title', 'SYNCHROGEST-EDUCATION')</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    
+    <!-- CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    
     <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+            background-color: #f8f9fc;
+        }
+        
         .sidebar {
-            height: 100vh;
             position: fixed;
             top: 0;
+            bottom: 0;
             left: 0;
+            width: 250px;
             padding-top: 60px;
-            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            background-color: #4e73df;
+            box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.15);
             z-index: 1;
+            transition: all 0.3s;
         }
-        .main-content {
+        
+        .content-wrapper {
             margin-left: 250px;
             padding: 20px;
             padding-top: 80px;
-        }
-        .navbar {
-            position: fixed;
-            width: 100%;
-            z-index: 2;
-        }
-        .nav-link {
-            display: flex;
-            align-items: center;
-            padding: 10px 15px;
-            color: #343a40;
             transition: all 0.3s;
         }
-        .nav-link:hover {
-            background-color: #f8f9fa;
+        
+        .sidebar-toggled .sidebar {
+            width: 100px;
         }
-        .nav-link .material-icons {
+        
+        .sidebar-toggled .content-wrapper {
+            margin-left: 100px;
+        }
+        
+        .topbar {
+            position: fixed;
+            top: 0;
+            right: 0;
+            left: 0;
+            height: 60px;
+            background-color: #fff;
+            box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.15);
+            z-index: 2;
+            padding: 0 30px;
+        }
+        
+        .nav-item .nav-link {
+            display: flex;
+            align-items: center;
+            padding: 12px 20px;
+            color: rgba(255, 255, 255, 0.8);
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        
+        .nav-item .nav-link:hover, .nav-item .nav-link.active {
+            background-color: rgba(255, 255, 255, 0.1);
+            color: #fff;
+            border-radius: 5px;
+            margin: 0 10px;
+        }
+        
+        .nav-item .nav-link .material-icons {
             margin-right: 10px;
         }
-        .active {
-            background-color: #e9ecef;
-            font-weight: bold;
+        
+        .sidebar-divider {
+            border-top: 1px solid rgba(255, 255, 255, 0.15);
+            margin: 1rem 0;
+        }
+        
+        .sidebar-heading {
+            padding: 0 20px;
+            margin-top: 15px;
+            margin-bottom: 5px;
+            font-size: 0.8rem;
+            color: rgba(255, 255, 255, 0.6);
+            text-transform: uppercase;
+            letter-spacing: 0.05rem;
+        }
+        
+        .card {
+            border: none;
+            border-radius: 5px;
+            box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.1);
+            margin-bottom: 20px;
+        }
+        
+        .card-header {
+            background-color: #f8f9fc;
+            border-bottom: 1px solid #e3e6f0;
+            padding: 15px 20px;
         }
     </style>
+    
     @yield('styles')
 </head>
 <body>
     @auth
-    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
-        <div class="container-fluid">
-            <a class="navbar-brand" href="#">SYNCHROGEST-EDUCATION</a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
+    <!-- Topbar -->
+    <nav class="topbar d-flex justify-content-between align-items-center">
+        <div class="d-flex align-items-center">
+            <button id="sidebarToggle" class="btn btn-link text-dark">
+                <i class="material-icons">menu</i>
             </button>
-            <div class="collapse navbar-collapse justify-content-end" id="navbarNav">
-                <ul class="navbar-nav">
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle text-white" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown">
-                            <span class="material-icons">person</span>
-                            {{ Auth::user()->name }}
-                        </a>
-                        <ul class="dropdown-menu dropdown-menu-end">
-                            <li>
-                                <form action="{{ route('logout') }}" method="POST">
-                                    @csrf
-                                    <button type="submit" class="dropdown-item">
-                                        <span class="material-icons">logout</span> Déconnexion
-                                    </button>
-                                </form>
-                            </li>
-                        </ul>
-                    </li>
-                </ul>
-            </div>
+            <h1 class="h5 mb-0 ml-2">@yield('page-title', 'Dashboard')</h1>
+        </div>
+        <div class="dropdown">
+            <a class="btn dropdown-toggle d-flex align-items-center" href="#" role="button" id="dropdownMenuLink" data-bs-toggle="dropdown" aria-expanded="false">
+                <span class="mr-2">{{ Auth::user()->name }}</span>
+                <i class="material-icons">account_circle</i>
+            </a>
+            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="dropdownMenuLink">
+                <li>
+                    <form action="{{ route('logout') }}" method="POST">
+                        @csrf
+                        <button type="submit" class="dropdown-item">Déconnexion</button>
+                    </form>
+                </li>
+            </ul>
         </div>
     </nav>
 
-    <div class="sidebar bg-white" style="width: 250px;">
-        <div class="list-group list-group-flush">
-        @if(Auth::user()->profil == 'inscription')
-            <a href="{{ route('inscriptions.dashboard') }}" class="nav-link {{ request()->routeIs('inscriptions.dashboard') ? 'active' : '' }}">
-                <span class="material-icons">dashboard</span> Tableau de bord
-            </a>
-            <a href="{{ route('inscriptions.parametres') }}" class="nav-link {{ request()->routeIs('inscriptions.parametres') ? 'active' : '' }}">
-                <span class="material-icons">settings</span> Paramètres généraux
-            </a>
-            <a href="{{ route('inscriptions.niveaux') }}" class="nav-link {{ request()->routeIs('inscriptions.niveaux') ? 'active' : '' }}">
-                <span class="material-icons">school</span> Niveaux et classes
-            </a>
-            <a href="{{ route('inscriptions.import') }}" class="nav-link {{ request()->routeIs('inscriptions.import') ? 'active' : '' }}">
-                <span class="material-icons">upload</span> Importation
-            </a>
-            <a href="{{ route('inscriptions.eleves') }}" class="nav-link {{ request()->routeIs('inscriptions.eleves') ? 'active' : '' }}">
-                <span class="material-icons">people</span> Élèves
-            </a>
-            <a href="{{ route('inscriptions.nouvelle') }}" class="nav-link {{ request()->routeIs('inscriptions.nouvelle') ? 'active' : '' }}">
-                <span class="material-icons">add_circle</span> Nouvelle inscription
-            </a>
-            <a href="{{ route('inscriptions.rapports') }}" class="nav-link {{ request()->routeIs('inscriptions.rapports') ? 'active' : '' }}">
-                <span class="material-icons">assessment</span> Rapports
-            </a>
-        @endif
+    <!-- Sidebar -->
+    <div class="sidebar">
+        <div class="text-center text-white mb-4">
+            <h3 class="h5">SYNCHROGEST</h3>
+            <p class="small mb-0">EDUCATION</p>
         </div>
+        
+        <hr class="sidebar-divider">
+        
+        @if(Auth::user()->profil == 'inscription')
+            <div class="sidebar-heading">DASHBOARD</div>
+            <div class="nav-item">
+                <a class="nav-link {{ request()->routeIs('inscriptions.dashboard') ? 'active' : '' }}" href="{{ route('inscriptions.dashboard') }}">
+                    <i class="material-icons">dashboard</i>
+                    <span>Tableau de bord</span>
+                </a>
+            </div>
+            
+            <hr class="sidebar-divider">
+            
+            <div class="sidebar-heading">CONFIGURATION</div>
+            <div class="nav-item">
+                <a class="nav-link {{ request()->routeIs('inscriptions.parametres') ? 'active' : '' }}" href="{{ route('inscriptions.parametres') }}">
+                    <i class="material-icons">settings</i>
+                    <span>Paramètres</span>
+                </a>
+            </div>
+            <div class="nav-item">
+                <a class="nav-link {{ request()->routeIs('inscriptions.niveaux') ? 'active' : '' }}" href="{{ route('inscriptions.niveaux') }}">
+                    <i class="material-icons">school</i>
+                    <span>Niveaux & Classes</span>
+                </a>
+            </div>
+            
+            <hr class="sidebar-divider">
+            
+            <div class="sidebar-heading">GESTION ÉLÈVES</div>
+            <div class="nav-item">
+                <a class="nav-link {{ request()->routeIs('inscriptions.import') ? 'active' : '' }}" href="{{ route('inscriptions.import') }}">
+                    <i class="material-icons">upload_file</i>
+                    <span>Importation</span>
+                </a>
+            </div>
+            <div class="nav-item">
+                <a class="nav-link {{ request()->routeIs('inscriptions.eleves') ? 'active' : '' }}" href="{{ route('inscriptions.eleves') }}">
+                    <i class="material-icons">people</i>
+                    <span>Élèves</span>
+                </a>
+            </div>
+            <div class="nav-item">
+                <a class="nav-link {{ request()->routeIs('inscriptions.nouvelle') ? 'active' : '' }}" href="{{ route('inscriptions.nouvelle') }}">
+                    <i class="material-icons">person_add</i>
+                    <span>Nouvelle inscription</span>
+                </a>
+            </div>
+            
+            <hr class="sidebar-divider">
+            
+            <div class="sidebar-heading">RAPPORTS</div>
+            <div class="nav-item">
+                <a class="nav-link {{ request()->routeIs('inscriptions.rapports') ? 'active' : '' }}" href="{{ route('inscriptions.rapports') }}">
+                    <i class="material-icons">assessment</i>
+                    <span>Rapports</span>
+                </a>
+            </div>
+        @endif
     </div>
 
-    <div class="main-content">
-        <div class="container-fluid">
-            <h1 class="mb-4">@yield('page-title')</h1>
-            
-            @if(session('success'))
-                <div class="alert alert-success alert-dismissible fade show" role="alert">
-                    {{ session('success') }}
-                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                </div>
-            @endif
+    <!-- Content Wrapper -->
+    <div class="content-wrapper">
+        @if(session('success'))
+            <div class="alert alert-success alert-dismissible fade show" role="alert">
+                {{ session('success') }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        @endif
 
-            @if(session('error'))
-                <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                    {{ session('error') }}
-                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                </div>
-            @endif
-            
-            @yield('content')
-        </div>
+        @if(session('error'))
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                {{ session('error') }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        @endif
+        
+        @yield('content')
     </div>
     @else
     <div class="container mt-4">
@@ -132,8 +228,19 @@
     </div>
     @endauth
 
+    <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Sidebar toggle
+            document.getElementById('sidebarToggle').addEventListener('click', function() {
+                document.body.classList.toggle('sidebar-toggled');
+            });
+        });
+    </script>
+    
     @yield('scripts')
 </body>
 </html>

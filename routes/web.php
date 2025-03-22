@@ -37,7 +37,11 @@ Route::prefix('inscriptions')->middleware('auth')->group(function () {
     Route::get('/eleves', [InscriptionController::class, 'eleves'])->name('inscriptions.eleves');
     Route::get('/eleves/{id}', [InscriptionController::class, 'showEleve']);
     Route::delete('/eleves/{id}', [InscriptionController::class, 'deleteEleve']);
-    
+    // Élèves
+    Route::get('/inscriptions/eleves', [InscriptionController::class, 'eleves'])->name('inscriptions.eleves');
+    Route::get('/inscriptions/eleves/{id}', [InscriptionController::class, 'showEleve']);
+    Route::delete('/inscriptions/eleves/{id}', [InscriptionController::class, 'deleteEleve']);
+        
     // Inscription
     Route::get('/nouvelle', [InscriptionController::class, 'nouvelleInscription'])->name('inscriptions.nouvelle');
     Route::post('/nouvelle', [InscriptionController::class, 'enregistrerInscription']);
@@ -59,3 +63,4 @@ Route::prefix('matieres')->middleware('auth')->group(function () {
     Route::get('/', [MatiereController::class, 'dashboard'])->name('matieres.dashboard');
     Route::get('/parametres', [MatiereController::class, 'parametres'])->name('matieres.parametres');
 });
+
