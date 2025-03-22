@@ -8,7 +8,6 @@ use App\Models\Classe;
 use App\Models\Niveau;
 use App\Models\Parametre;
 use Illuminate\Http\Request;
-use Inertia\Inertia;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -37,24 +36,115 @@ class InscriptionController extends Controller
             ->groupBy('niveaux.nom')
             ->get();
         
-        return Inertia::render('Inscription/Dashboard', [
-            'parametres' => $parametres,
-            'stats' => [
-                'totalEleves' => $totalEleves,
-                'totalInscrits' => $totalInscrits,
-                'nouveauxInscrits' => $nouveauxInscrits,
-                'inscriptionsParNiveau' => $inscriptionsParNiveau,
-            ],
+        return view('inscriptions.dashboard', compact('parametres', 'totalEleves', 'totalInscrits', 'nouveauxInscrits', 'inscriptionsParNiveau'));
+    }
+
+    public function parametres()
+    {
+        $parametres = Parametre::first();
+        
+        return view('inscriptions.parametres', compact('parametres'));
+    }
+
+    public function niveaux()
+    {
+        $niveaux = Niveau::with('classes')->get();
+        
+        return view('inscriptions.niveaux', compact('niveaux'));
+    }
+
+    public function saveParametres(Request $request)
+    {
+        $request->validate([
+            'nom_etablissement' => 'required|string|max:255',
+            'adresse' => 'nullable|string|max:255',
+            'telephone' => 'nullable|string|max:20',
+            'email' => 'nullable|email|max:255',
+            'annee_scolaire' => 'required|string|max:9',
         ]);
+
+        // Enregistrer ou mettre à jour les paramètres généraux
+        Parametre::updateOrCreate(
+            ['id' => 1],
+            [
+                'nom_etablissement' => $request->nom_etablissement,
+                'adresse' => $request->adresse,
+                'telephone' => $request->telephone,
+                'email' => $request->email,
+                'annee_scolaire' => $request->annee_scolaire,
+            ]
+        );
+
+        return redirect()->route('inscriptions.parametres')->with('success', 'Paramètres enregistrés avec succès');
+    }
+
+    public function saveNiveaux(Request $request)
+    {
+        $request->validate([
+            'niveaux' => 'required|array',
+            'niveaux.*.nom' => 'required|string|max:50',
+            'niveaux.*.frais_inscription' => 'required|numeric|min:0',
+            'niveaux.*.frais_scolarite' => 'required|numeric|min:0',
+            'niveaux.*.classes' => 'array',
+            'niveaux.*.classes.*.nom' => 'required|string|max:50',
+            'niveaux.*.classes.*.capacite' => 'required|integer|min:1',
+        ]);
+
+        // Traiter les niveaux et classes
+        foreach ($request->niveaux as $niveauData) {
+            if (!isset($niveauData['nom']) || empty($niveauData['nom'])) {
+                continue; // Ignorer les niveaux sans nom
+            }
+            
+            $niveau = Niveau::updateOrCreate(
+                ['id' => $niveauData['id'] ?? null],
+                [
+                    'nom' => $niveauData['nom'],
+                    'frais_inscription' => $niveauData['frais_inscription'],
+                    'frais_scolarite' => $niveauData['frais_scolarite'],
+                    'est_niveau_examen' => isset($niveauData['est_niveau_examen']),
+                    'frais_examen' => isset($niveauData['est_niveau_examen']) ? ($niveauData['frais_examen'] ?? 0) : 0,
+                ]
+            );
+
+            // Gérer les classes de ce niveau
+            if (isset($niveauData['classes']) && is_array($niveauData['classes'])) {
+                $classeIds = [];
+                
+                foreach ($niveauData['classes'] as $classeData) {
+                    if (!isset($classeData['nom']) || empty($classeData['nom'])) {
+                        continue; // Ignorer les classes sans nom
+                    }
+                    
+                    $classe = Classe::updateOrCreate(
+                        ['id' => $classeData['id'] ?? null],
+                        [
+                            'niveau_id' => $niveau->id,
+                            'nom' => $classeData['nom'],
+                            'capacite' => $classeData['capacite'],
+                        ]
+                    );
+                    
+                    $classeIds[] = $classe->id;
+                }
+                
+                // Supprimer les classes qui n'existent plus pour ce niveau
+                if (!empty($classeIds)) {
+                    Classe::where('niveau_id', $niveau->id)
+                        ->whereNotIn('id', $classeIds)
+                        ->delete();
+                }
+            }
+        }
+
+        return redirect()->route('inscriptions.niveaux')->with('success', 'Niveaux et classes enregistrés avec succès');
     }
 
     public function showImport()
     {
         $niveaux = Niveau::with('classes')->get();
         
-        return Inertia::render('Inscription/Import', [
-            'niveaux' => $niveaux,
-        ]);
+        return view('inscriptions.import', compact('niveaux'));
     }
 
     public function processImport(Request $request)
@@ -64,20 +154,25 @@ class InscriptionController extends Controller
             'classe_id' => 'required|exists:classes,id',
         ]);
 
+        $classe = Classe::with('niveau')->findOrFail($request->classe_id);
+
         if ($request->hasFile('file')) {
-            $path = $request->file('file')->storeAs('imports', 'eleves_' . time() . '.' . $request->file('file')->getClientOriginalExtension());
+            // Stocker le fichier temporairement
+            $path = $request->file('file')->store('temp');
             
-            // Le traitement du fichier Excel se fera côté frontend via React
-            // Ici, nous simulons juste une réponse pour indiquer que le fichier a été téléchargé
+            // Analyser le fichier Excel (cela sera fait côté client avec JavaScript)
+            // Ici, nous redirigeons simplement vers la même page avec un message de succès
             
-            return response()->json([
-                'success' => true,
+            return redirect()->route('inscriptions.import')->with([
+                'success' => 'Fichier importé avec succès. Veuillez vérifier les données avant de finaliser l\'importation.',
                 'file_path' => $path,
                 'classe_id' => $request->classe_id,
+                'classe_nom' => $classe->nom,
+                'niveau_nom' => $classe->niveau->nom,
             ]);
         }
 
-        return response()->json(['success' => false, 'message' => 'Erreur lors du téléchargement du fichier'], 400);
+        return redirect()->route('inscriptions.import')->with('error', 'Erreur lors du téléchargement du fichier');
     }
 
     public function saveImportedData(Request $request)
@@ -114,7 +209,7 @@ class InscriptionController extends Controller
         $query = Eleve::query()->with('classe.niveau');
         
         // Filtrage
-        if ($request->has('search')) {
+        if ($request->has('search') && !empty($request->search)) {
             $search = $request->search;
             $query->where(function($q) use ($search) {
                 $q->where('ine', 'like', "%{$search}%")
@@ -123,42 +218,60 @@ class InscriptionController extends Controller
             });
         }
         
-        if ($request->has('classe_id') && $request->classe_id) {
+        if ($request->has('classe_id') && !empty($request->classe_id)) {
             $query->where('classe_id', $request->classe_id);
         }
         
-        if ($request->has('statut') && $request->statut) {
+        if ($request->has('statut') && !empty($request->statut)) {
             $query->where('statut', $request->statut);
         }
         
-        $eleves = $query->paginate(15);
+        $eleves = $query->orderBy('nom')->orderBy('prenom')->paginate(15);
         $classes = Classe::with('niveau')->get();
         
-        return Inertia::render('Inscription/Eleves', [
-            'eleves' => $eleves,
-            'classes' => $classes,
-            'filters' => $request->only(['search', 'classe_id', 'statut']),
-        ]);
+        return view('inscriptions.eleves', compact('eleves', 'classes'));
+    }
+
+    public function showEleve($id)
+    {
+        $eleve = Eleve::with('classe.niveau')->findOrFail($id);
+        $inscriptions = Inscription::with('classe.niveau')
+            ->where('eleve_id', $id)
+            ->orderBy('annee_scolaire', 'desc')
+            ->get();
+        
+        return response()->json(['eleve' => $eleve, 'inscriptions' => $inscriptions]);
+    }
+
+    public function deleteEleve($id)
+    {
+        $eleve = Eleve::findOrFail($id);
+        
+        // Vérifier si l'élève a des inscriptions
+        $hasInscriptions = Inscription::where('eleve_id', $id)->exists();
+        
+        if ($hasInscriptions) {
+            return redirect()->route('inscriptions.eleves')->with('error', 'Impossible de supprimer cet élève car il possède des inscriptions.');
+        }
+        
+        $eleve->delete();
+        
+        return redirect()->route('inscriptions.eleves')->with('success', 'Élève supprimé avec succès.');
     }
 
     public function nouvelleInscription(Request $request)
     {
-        $ine = $request->ine;
         $eleve = null;
+        $searchIne = $request->ine;
         
-        if ($ine) {
-            $eleve = Eleve::with('classe.niveau')->where('ine', $ine)->first();
+        if ($searchIne) {
+            $eleve = Eleve::with('classe.niveau')->where('ine', $searchIne)->first();
         }
         
         $classes = Classe::with('niveau')->get();
         $parametres = Parametre::first();
         
-        return Inertia::render('Inscription/Nouvelle', [
-            'eleve' => $eleve,
-            'classes' => $classes,
-            'parametres' => $parametres,
-            'searchIne' => $ine,
-        ]);
+        return view('inscriptions.nouvelle', compact('eleve', 'classes', 'parametres', 'searchIne'));
     }
 
     public function enregistrerInscription(Request $request)
@@ -173,7 +286,7 @@ class InscriptionController extends Controller
         $parametres = Parametre::first();
         
         if (!$parametres || !$parametres->annee_scolaire) {
-            return redirect()->back()->withErrors(['error' => 'Veuillez configurer les paramètres de l\'établissement']);
+            return redirect()->back()->with('error', 'Veuillez configurer les paramètres de l\'établissement');
         }
 
         $classe = Classe::with('niveau')->findOrFail($request->classe_id);
@@ -207,10 +320,10 @@ class InscriptionController extends Controller
             DB::commit();
             
             return redirect()->route('inscriptions.recu', ['id' => $inscription->id])
-                            ->with('success', 'Inscription enregistrée avec succès');
+                ->with('success', 'Inscription enregistrée avec succès');
         } catch (\Exception $e) {
             DB::rollBack();
-            return redirect()->back()->withErrors(['error' => 'Erreur lors de l\'enregistrement: ' . $e->getMessage()]);
+            return redirect()->back()->with('error', 'Erreur lors de l\'enregistrement: ' . $e->getMessage());
         }
     }
 
@@ -219,10 +332,7 @@ class InscriptionController extends Controller
         $inscription = Inscription::with(['eleve', 'classe.niveau', 'user'])->findOrFail($id);
         $parametres = Parametre::first();
         
-        return Inertia::render('Inscription/Recu', [
-            'inscription' => $inscription,
-            'parametres' => $parametres,
-        ]);
+        return view('inscriptions.recu', compact('inscription', 'parametres'));
     }
 
     public function rapports()
@@ -230,10 +340,7 @@ class InscriptionController extends Controller
         $niveaux = Niveau::with('classes')->get();
         $parametres = Parametre::first();
         
-        return Inertia::render('Inscription/Rapports', [
-            'niveaux' => $niveaux,
-            'parametres' => $parametres,
-        ]);
+        return view('inscriptions.rapports', compact('niveaux', 'parametres'));
     }
     
     public function genererRapport(Request $request)
@@ -272,15 +379,15 @@ class InscriptionController extends Controller
         
         $inscriptions = $query->get();
         
-        // Générer et télécharger le rapport
+        // Générer le rapport (cette partie serait à implémenter avec une bibliothèque PDF ou Excel)
         if ($request->format === 'pdf') {
-            // Code pour générer un PDF
-            // À implémenter avec une bibliothèque PDF
-            return response()->json(['success' => true, 'message' => 'Fonctionnalité PDF à implémenter']);
+            // Pour l'instant, rediriger avec un message
+            return redirect()->route('inscriptions.rapports')
+                ->with('success', 'La fonctionnalité de génération de PDF sera implémentée ultérieurement.');
         } else {
-            // Code pour générer un fichier Excel
-            // À implémenter avec une bibliothèque Excel
-            return response()->json(['success' => true, 'message' => 'Fonctionnalité Excel à implémenter']);
+            // Pour l'instant, rediriger avec un message
+            return redirect()->route('inscriptions.rapports')
+                ->with('success', 'La fonctionnalité de génération d\'Excel sera implémentée ultérieurement.');
         }
     }
 }
