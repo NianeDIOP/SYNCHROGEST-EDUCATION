@@ -50,46 +50,52 @@ class FinanceController extends Controller
         }
         
         // Données pour le graphique d'évolution financière
-        $financesParMois = [];
-        $mois = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc'];
-        
-        if (class_exists('App\Models\Transaction')) {
-            // Recettes par mois
-            $recettesParMois = Transaction::where('type', 'recette')
-                ->where('annee_scolaire', $anneeScolaire)
-                ->selectRaw('MONTH(date) as mois, SUM(montant) as total')
-                ->groupBy('mois')
-                ->get()
-                ->pluck('total', 'mois')
-                ->toArray();
-            
-            // Dépenses par mois
-            $depensesParMois = Transaction::where('type', 'depense')
-                ->where('annee_scolaire', $anneeScolaire)
-                ->selectRaw('MONTH(date) as mois, SUM(montant) as total')
-                ->groupBy('mois')
-                ->get()
-                ->pluck('total', 'mois')
-                ->toArray();
-            
-            // Compléter les mois manquants
-            for ($i = 1; $i <= 12; $i++) {
-                $financesParMois['recettes'][] = $recettesParMois[$i] ?? 0;
-                $financesParMois['depenses'][] = $depensesParMois[$i] ?? 0;
+        // Localiser ce bloc de code dans app/Http/Controllers/FinanceController.php
+// et remplacer la section entière par ce qui suit:
+
+// Données pour le graphique d'évolution financière
+            $financesParMois = [];
+            $mois = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc'];
+
+            if (class_exists('App\Models\Transaction')) {
+                // Recettes par mois - Utilisation de strftime pour SQLite
+                $recettesParMois = Transaction::where('type', 'recette')
+                    ->where('annee_scolaire', $anneeScolaire)
+                    ->selectRaw("strftime('%m', date) as mois, SUM(montant) as total")
+                    ->groupBy('mois')
+                    ->get()
+                    ->pluck('total', 'mois')
+                    ->toArray();
+                
+                // Dépenses par mois - Utilisation de strftime pour SQLite
+                $depensesParMois = Transaction::where('type', 'depense')
+                    ->where('annee_scolaire', $anneeScolaire)
+                    ->selectRaw("strftime('%m', date) as mois, SUM(montant) as total")
+                    ->groupBy('mois')
+                    ->get()
+                    ->pluck('total', 'mois')
+                    ->toArray();
+                
+                // Compléter les mois manquants
+                for ($i = 1; $i <= 12; $i++) {
+                    // Formater i en '01', '02', etc. pour correspondre au format de strftime('%m')
+                    $monthKey = str_pad($i, 2, '0', STR_PAD_LEFT);
+                    $financesParMois['recettes'][] = $recettesParMois[$monthKey] ?? 0;
+                    $financesParMois['depenses'][] = $depensesParMois[$monthKey] ?? 0;
+                }
+            } else {
+                // Données factices pour le développement
+                $financesParMois = [
+                    'recettes' => [0, 10000, 20000, 15000, 25000, 30000, 25000, 20000, 30000, 40000, 35000, 50000],
+                    'depenses' => [0, 5000, 10000, 12000, 15000, 20000, 15000, 10000, 18000, 25000, 20000, 30000]
+                ];
             }
-        } else {
-            // Données factices pour le développement
-            $financesParMois = [
-                'recettes' => [0, 10000, 20000, 15000, 25000, 30000, 25000, 20000, 30000, 40000, 35000, 50000],
-                'depenses' => [0, 5000, 10000, 12000, 15000, 20000, 15000, 10000, 18000, 25000, 20000, 30000]
-            ];
-        }
         
         // Récupérer les données de répartition des dépenses
         $repartitionDepenses = [];
         if (class_exists('App\Models\Transaction')) {
-            $repartitionDepenses = Transaction::where('type', 'depense')
-                ->where('annee_scolaire', $anneeScolaire)
+            $repartitionDepenses = Transaction::where('transactions.type', 'depense')
+                ->where('transactions.annee_scolaire', $anneeScolaire)
                 ->join('categories_financieres', 'transactions.categorie_id', '=', 'categories_financieres.id')
                 ->selectRaw('categories_financieres.nom, SUM(transactions.montant) as total')
                 ->groupBy('categories_financieres.id', 'categories_financieres.nom')
