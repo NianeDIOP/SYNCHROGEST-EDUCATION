@@ -9,6 +9,12 @@ use App\Models\CategorieFinanciere;
 use App\Models\Niveau;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use PDF;
+use Maatwebsite\Excel\Facades\Excel;
+use App\Exports\GeneralFinanceExport;
+use App\Exports\MonthlyFinanceExport;
+use App\Exports\CategoryFinanceExport;
+use Carbon\Carbon;
 
 class FinanceController extends Controller
 {
@@ -50,46 +56,42 @@ class FinanceController extends Controller
         }
         
         // Données pour le graphique d'évolution financière
-        // Localiser ce bloc de code dans app/Http/Controllers/FinanceController.php
-// et remplacer la section entière par ce qui suit:
-
-// Données pour le graphique d'évolution financière
-            $financesParMois = [];
-            $mois = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc'];
-
-            if (class_exists('App\Models\Transaction')) {
-                // Recettes par mois - Utilisation de strftime pour SQLite
-                $recettesParMois = Transaction::where('type', 'recette')
-                    ->where('annee_scolaire', $anneeScolaire)
-                    ->selectRaw("strftime('%m', date) as mois, SUM(montant) as total")
-                    ->groupBy('mois')
-                    ->get()
-                    ->pluck('total', 'mois')
-                    ->toArray();
-                
-                // Dépenses par mois - Utilisation de strftime pour SQLite
-                $depensesParMois = Transaction::where('type', 'depense')
-                    ->where('annee_scolaire', $anneeScolaire)
-                    ->selectRaw("strftime('%m', date) as mois, SUM(montant) as total")
-                    ->groupBy('mois')
-                    ->get()
-                    ->pluck('total', 'mois')
-                    ->toArray();
-                
-                // Compléter les mois manquants
-                for ($i = 1; $i <= 12; $i++) {
-                    // Formater i en '01', '02', etc. pour correspondre au format de strftime('%m')
-                    $monthKey = str_pad($i, 2, '0', STR_PAD_LEFT);
-                    $financesParMois['recettes'][] = $recettesParMois[$monthKey] ?? 0;
-                    $financesParMois['depenses'][] = $depensesParMois[$monthKey] ?? 0;
-                }
-            } else {
-                // Données factices pour le développement
-                $financesParMois = [
-                    'recettes' => [0, 10000, 20000, 15000, 25000, 30000, 25000, 20000, 30000, 40000, 35000, 50000],
-                    'depenses' => [0, 5000, 10000, 12000, 15000, 20000, 15000, 10000, 18000, 25000, 20000, 30000]
-                ];
+        $financesParMois = [];
+        $mois = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc'];
+        
+        if (class_exists('App\Models\Transaction')) {
+            // Recettes par mois - Utilisation de strftime pour SQLite
+            $recettesParMois = Transaction::where('type', 'recette')
+                ->where('annee_scolaire', $anneeScolaire)
+                ->selectRaw("strftime('%m', date) as mois, SUM(montant) as total")
+                ->groupBy('mois')
+                ->get()
+                ->pluck('total', 'mois')
+                ->toArray();
+            
+            // Dépenses par mois - Utilisation de strftime pour SQLite
+            $depensesParMois = Transaction::where('type', 'depense')
+                ->where('annee_scolaire', $anneeScolaire)
+                ->selectRaw("strftime('%m', date) as mois, SUM(montant) as total")
+                ->groupBy('mois')
+                ->get()
+                ->pluck('total', 'mois')
+                ->toArray();
+            
+            // Compléter les mois manquants
+            for ($i = 1; $i <= 12; $i++) {
+                // Formater i en '01', '02', etc. pour correspondre au format de strftime('%m')
+                $monthKey = str_pad($i, 2, '0', STR_PAD_LEFT);
+                $financesParMois['recettes'][] = $recettesParMois[$monthKey] ?? 0;
+                $financesParMois['depenses'][] = $depensesParMois[$monthKey] ?? 0;
             }
+        } else {
+            // Données factices pour le développement
+            $financesParMois = [
+                'recettes' => [0, 10000, 20000, 15000, 25000, 30000, 25000, 20000, 30000, 40000, 35000, 50000],
+                'depenses' => [0, 5000, 10000, 12000, 15000, 20000, 15000, 10000, 18000, 25000, 20000, 30000]
+            ];
+        }
         
         // Récupérer les données de répartition des dépenses
         $repartitionDepenses = [];
@@ -336,10 +338,56 @@ class FinanceController extends Controller
         $niveaux = Niveau::all();
         $categories = CategorieFinanciere::all();
         
+        // Statistiques de base pour affichage dans la vue
+        $totalRecettes = Transaction::where('type', 'recette')
+            ->where('annee_scolaire', $anneeScolaire)
+            ->sum('montant');
+            
+        $totalDepenses = Transaction::where('type', 'depense')
+            ->where('annee_scolaire', $anneeScolaire)
+            ->sum('montant');
+            
+        $solde = $totalRecettes - $totalDepenses;
+        
+        $stats = [
+            'totalRecettes' => $totalRecettes,
+            'totalDepenses' => $totalDepenses,
+            'solde' => $solde
+        ];
+        
         return view('finances.rapports', [
             'parametres' => $parametres,
             'niveaux' => $niveaux,
-            'categories' => $categories
+            'categories' => $categories,
+            'stats' => $stats
+        ]);
+    }
+    
+    public function recu($id)
+    {
+        $transaction = Transaction::with(['categorie', 'user'])->findOrFail($id);
+        $parametres = Parametre::first();
+        
+        // Mode HTML simple (pour la visualisation)
+        if (request()->has('view')) {
+            return view('finances.recu', [
+                'transaction' => $transaction,
+                'parametres' => $parametres
+            ]);
+        }
+        
+        // Générer le PDF
+        $pdf = PDF::loadView('finances.pdf.recu', [
+            'transaction' => $transaction,
+            'parametres' => $parametres
+        ]);
+        
+        $filename = 'recu-' . ($transaction->reference ?: $transaction->id) . '.pdf';
+        
+        // Forcer le téléchargement avec des en-têtes spécifiques
+        return $pdf->download($filename, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
         ]);
     }
     
@@ -354,66 +402,205 @@ class FinanceController extends Controller
         ]);
         
         $parametres = Parametre::first();
+        $anneeScolaire = $parametres ? $parametres->annee_scolaire : null;
         
-        if (!$parametres) {
-            return redirect()->back()->with('error', 'Veuillez configurer les paramètres de l\'établissement');
-        }
-        
-        $anneeScolaire = $parametres->annee_scolaire;
-        
-        // Logique pour générer le rapport spécifique
+        // Générer le rapport selon le type demandé
         switch ($request->type_rapport) {
             case 'general':
-                // Rapport financier général
-                $recettes = Transaction::where('type', 'recette')
-                    ->where('annee_scolaire', $anneeScolaire)
-                    ->sum('montant');
-                
-                $depenses = Transaction::where('type', 'depense')
-                    ->where('annee_scolaire', $anneeScolaire)
-                    ->sum('montant');
-                
-                $solde = $recettes - $depenses;
-                
-                // TODO: Générer le PDF ou Excel
+                return $this->genererRapportGeneral($request->format, $anneeScolaire, $parametres);
                 break;
                 
             case 'mensuel':
-                // Rapport financier pour une période spécifique
-                $debut = $request->periode_debut;
-                $fin = $request->periode_fin;
-                
-                $recettes = Transaction::where('type', 'recette')
-                    ->where('annee_scolaire', $anneeScolaire)
-                    ->whereBetween('date', [$debut, $fin])
-                    ->sum('montant');
-                
-                $depenses = Transaction::where('type', 'depense')
-                    ->where('annee_scolaire', $anneeScolaire)
-                    ->whereBetween('date', [$debut, $fin])
-                    ->sum('montant');
-                
-                $solde = $recettes - $depenses;
-                
-                // TODO: Générer le PDF ou Excel
+                return $this->genererRapportMensuel(
+                    $request->format, 
+                    $anneeScolaire, 
+                    $parametres, 
+                    $request->periode_debut, 
+                    $request->periode_fin
+                );
                 break;
                 
             case 'categorie':
-                // Rapport par catégorie
-                $categorieId = $request->categorie_id;
-                $categorie = CategorieFinanciere::findOrFail($categorieId);
-                
-                $transactions = Transaction::where('categorie_id', $categorieId)
-                    ->where('annee_scolaire', $anneeScolaire)
-                    ->get();
-                
-                $total = $transactions->sum('montant');
-                
-                // TODO: Générer le PDF ou Excel
+                return $this->genererRapportCategorie(
+                    $request->format, 
+                    $anneeScolaire, 
+                    $parametres, 
+                    $request->categorie_id
+                );
                 break;
+                
+            default:
+                return redirect()->back()->with('error', 'Type de rapport non reconnu.');
         }
+    }
+    
+    private function genererRapportGeneral($format, $anneeScolaire, $parametres)
+    {
+        // Récupérer les données
+        $totalRecettes = Transaction::where('type', 'recette')
+            ->where('annee_scolaire', $anneeScolaire)
+            ->sum('montant');
+            
+        $totalDepenses = Transaction::where('type', 'depense')
+            ->where('annee_scolaire', $anneeScolaire)
+            ->sum('montant');
+            
+        $solde = $totalRecettes - $totalDepenses;
         
-        // Pour l'instant, rediriger avec un message
-        return redirect()->back()->with('success', 'La fonctionnalité de génération de rapports sera implémentée ultérieurement.');
+        $transactions = Transaction::where('annee_scolaire', $anneeScolaire)
+            ->with('categorie')
+            ->orderBy('date', 'desc')
+            ->get();
+        
+        // Générer selon le format
+        if ($format === 'pdf') {
+            $pdf = PDF::loadView('finances.pdf.rapport', [
+                'type' => 'general',
+                'titre' => 'Rapport Financier Général',
+                'anneeScolaire' => $anneeScolaire,
+                'parametres' => $parametres,
+                'transactions' => $transactions,
+                'totalRecettes' => $totalRecettes,
+                'totalDepenses' => $totalDepenses,
+                'solde' => $solde
+            ]);
+            
+            $filename = 'rapport-financier-' . $anneeScolaire . '.pdf';
+            
+            // Forcer le téléchargement avec des en-têtes spécifiques
+            return $pdf->download($filename, [
+                'Content-Type' => 'application/pdf',
+                'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+            ]);
+        } else {
+            $summary = [
+                'totalRecettes' => $totalRecettes,
+                'totalDepenses' => $totalDepenses,
+                'solde' => $solde
+            ];
+            
+            $filename = 'rapport-financier-' . $anneeScolaire . '.xlsx';
+            
+            return Excel::download(
+                new GeneralFinanceExport($transactions, $summary, $anneeScolaire),
+                $filename,
+                \Maatwebsite\Excel\Excel::XLSX,
+                [
+                    'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                    'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+                ]
+            );
+        }
+    }
+    
+    private function genererRapportMensuel($format, $anneeScolaire, $parametres, $periodeDebut, $periodeFin)
+    {
+        // Convertir les dates
+        $debut = Carbon::parse($periodeDebut);
+        $fin = Carbon::parse($periodeFin);
+        
+        // Récupérer les données
+        $transactions = Transaction::where('annee_scolaire', $anneeScolaire)
+            ->whereBetween('date', [$debut, $fin])
+            ->with('categorie')
+            ->orderBy('date', 'desc')
+            ->get();
+            
+        $totalRecettes = $transactions->where('type', 'recette')->sum('montant');
+        $totalDepenses = $transactions->where('type', 'depense')->sum('montant');
+        $solde = $totalRecettes - $totalDepenses;
+        
+        // Titre du rapport
+        $titre = 'Rapport Financier du ' . $debut->format('d/m/Y') . ' au ' . $fin->format('d/m/Y');
+        
+        // Générer selon le format
+        if ($format === 'pdf') {
+            $pdf = PDF::loadView('finances.pdf.rapport', [
+                'type' => 'mensuel',
+                'titre' => $titre,
+                'anneeScolaire' => $anneeScolaire,
+                'parametres' => $parametres,
+                'transactions' => $transactions,
+                'totalRecettes' => $totalRecettes,
+                'totalDepenses' => $totalDepenses,
+                'solde' => $solde,
+                'periode' => [
+                    'debut' => $debut,
+                    'fin' => $fin
+                ]
+            ]);
+            
+            $filename = 'rapport-financier-' . $debut->format('d-m-Y') . '-au-' . $fin->format('d-m-Y') . '.pdf';
+            
+            // Forcer le téléchargement avec des en-têtes spécifiques
+            return $pdf->download($filename, [
+                'Content-Type' => 'application/pdf',
+                'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+            ]);
+        } else {
+            $period = [
+                'debut' => $periodeDebut,
+                'fin' => $periodeFin
+            ];
+            
+            $filename = 'rapport-financier-' . $debut->format('d-m-Y') . '-au-' . $fin->format('d-m-Y') . '.xlsx';
+            
+            return Excel::download(
+                new MonthlyFinanceExport($transactions, $period),
+                $filename,
+                \Maatwebsite\Excel\Excel::XLSX,
+                [
+                    'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                    'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+                ]
+            );
+        }
+    }
+    
+    private function genererRapportCategorie($format, $anneeScolaire, $parametres, $categorieId)
+    {
+        // Récupérer la catégorie
+        $categorie = CategorieFinanciere::findOrFail($categorieId);
+        
+        // Récupérer les transactions
+        $transactions = Transaction::where('annee_scolaire', $anneeScolaire)
+            ->where('categorie_id', $categorieId)
+            ->orderBy('date', 'desc')
+            ->get();
+        
+        // Titre du rapport
+        $titre = 'Rapport Financier - Catégorie ' . $categorie->nom;
+        
+        // Générer selon le format
+        if ($format === 'pdf') {
+            $pdf = PDF::loadView('finances.pdf.rapport', [
+                'type' => 'categorie',
+                'titre' => $titre,
+                'anneeScolaire' => $anneeScolaire,
+                'parametres' => $parametres,
+                'transactions' => $transactions,
+                'categorie' => $categorie
+            ]);
+            
+            $filename = 'rapport-categorie-' . \Str::slug($categorie->nom) . '.pdf';
+            
+            // Forcer le téléchargement avec des en-têtes spécifiques
+            return $pdf->download($filename, [
+                'Content-Type' => 'application/pdf',
+                'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+            ]);
+        } else {
+            $filename = 'rapport-categorie-' . \Str::slug($categorie->nom) . '.xlsx';
+            
+            return Excel::download(
+                new CategoryFinanceExport($transactions, $categorie),
+                $filename,
+                \Maatwebsite\Excel\Excel::XLSX,
+                [
+                    'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                    'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+                ]
+            );
+        }
     }
 }

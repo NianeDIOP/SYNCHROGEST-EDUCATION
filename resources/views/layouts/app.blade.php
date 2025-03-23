@@ -1,3 +1,4 @@
+<!-- Remplacez le contenu de votre fichier resources/views/layouts/app.blade.php par ce code -->
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -15,17 +16,36 @@
     <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     
+    <!-- Google Material Icons -->
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    
     <style>
         :root {
-            --primary: #4e73df;
-            --primary-dark: #2e59d9;
-            --secondary: #6c757d;
-            --success: #1cc88a;
-            --info: #36b9cc;
-            --warning: #f6c23e;
-            --danger: #e74a3b;
+            /* Couleurs communes */
+            --white: #ffffff;
             --light: #f8f9fc;
             --dark: #5a5c69;
+            --gray: #858796;
+            --light-gray: #e3e6f0;
+            
+            /* Variables du thème selon le profil */
+            @php
+                $profileColors = [
+                    'default' => ['primary' => '#4e73df', 'primary-dark' => '#2e59d9', 'accent' => '#36b9cc'],
+                    'inscription' => ['primary' => '#0d6efd', 'primary-dark' => '#0a58ca', 'accent' => '#6610f2'],
+                    'finance' => ['primary' => '#198754', 'primary-dark' => '#0f5132', 'accent' => '#ffc107'],
+                    'matiere' => ['primary' => '#6f42c1', 'primary-dark' => '#5a32a3', 'accent' => '#fd7e14'],
+                ];
+                
+                $userProfile = Auth::check() ? Auth::user()->profil ?? 'default' : 'default';
+                $colors = $profileColors[$userProfile] ?? $profileColors['default'];
+            @endphp
+            
+            --primary: {{ $colors['primary'] }};
+            --primary-dark: {{ $colors['primary-dark'] }};
+            --accent: {{ $colors['accent'] }};
+            
+            /* Layout dimensions */
             --sidebar-width: 250px;
             --sidebar-collapsed-width: 80px;
             --topbar-height: 60px;
@@ -34,6 +54,7 @@
         body {
             font-family: 'Nunito', sans-serif;
             background-color: #f8f9fc;
+            color: #333;
         }
         
         /* Sidebar */
@@ -48,6 +69,22 @@
             box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.15);
             z-index: 10;
             transition: all 0.3s;
+            overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255, 255, 255, 0.5) transparent;
+        }
+        
+        .sidebar::-webkit-scrollbar {
+            width: 5px;
+        }
+        
+        .sidebar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        
+        .sidebar::-webkit-scrollbar-thumb {
+            background-color: rgba(255, 255, 255, 0.5);
+            border-radius: 20px;
         }
         
         .sidebar-collapsed .sidebar {
@@ -89,10 +126,13 @@
             right: 0;
             left: 0;
             height: var(--topbar-height);
-            background-color: #fff;
+            background-color: var(--white);
             box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.15);
             z-index: 11;
             padding: 0 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
         }
         
         .topbar .dropdown-menu {
@@ -103,6 +143,7 @@
         /* Navigation */
         .sidebar .nav-item {
             position: relative;
+            margin-bottom: 5px;
         }
         
         .sidebar .nav-item .nav-link {
@@ -112,18 +153,27 @@
             color: rgba(255, 255, 255, 0.8);
             font-weight: 600;
             transition: all 0.2s;
+            border-radius: 5px;
+            margin: 0 10px;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
         }
         
         .sidebar .nav-item .nav-link i {
             margin-right: 12px;
+            font-size: 1.1rem;
+            width: 25px;
+            text-align: center;
         }
         
         .sidebar .nav-item .nav-link:hover,
         .sidebar .nav-item .nav-link.active {
-            background-color: rgba(255, 255, 255, 0.1);
-            color: #fff;
-            border-radius: 5px;
-            margin: 0 10px;
+            background-color: rgba(255, 255, 255, 0.15);
+            color: var(--white);
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+        
+        .sidebar .nav-item .nav-link.active {
+            border-left: 4px solid var(--accent);
         }
         
         .sidebar-divider {
@@ -142,12 +192,39 @@
             font-weight: 700;
         }
         
+        /* Sidebar Brand */
+        .sidebar-brand {
+            padding: 15px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            margin-bottom: 20px;
+        }
+        
+        .sidebar-brand-icon {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+        
+        .sidebar-brand-text {
+            font-size: 1.2rem;
+            font-weight: 700;
+            letter-spacing: 1px;
+        }
+        
         /* Cards */
         .card {
             border: none;
-            border-radius: 0.35rem;
+            border-radius: 0.5rem;
             box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.1);
             margin-bottom: 20px;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 0.3rem 2rem 0 rgba(58, 59, 69, 0.15);
         }
         
         .card .card-header {
@@ -162,6 +239,7 @@
         .card-header .card-title {
             margin-bottom: 0;
             font-weight: 700;
+            color: var(--dark);
         }
         
         /* Border Cards */
@@ -170,19 +248,30 @@
         }
         
         .border-left-success {
-            border-left: 0.25rem solid var(--success) !important;
+            border-left: 0.25rem solid #1cc88a !important;
         }
         
         .border-left-info {
-            border-left: 0.25rem solid var(--info) !important;
+            border-left: 0.25rem solid var(--accent) !important;
         }
         
         .border-left-warning {
-            border-left: 0.25rem solid var(--warning) !important;
+            border-left: 0.25rem solid #f6c23e !important;
         }
         
         .border-left-danger {
-            border-left: 0.25rem solid var(--danger) !important;
+            border-left: 0.25rem solid #e74a3b !important;
+        }
+        
+        /* Buttons */
+        .btn-primary {
+            background-color: var(--primary);
+            border-color: var(--primary);
+        }
+        
+        .btn-primary:hover {
+            background-color: var(--primary-dark);
+            border-color: var(--primary-dark);
         }
         
         /* Tables */
@@ -248,6 +337,10 @@
                 margin-right: 0;
                 font-size: 1.2rem;
             }
+            
+            .topbar {
+                padding: 0 10px;
+            }
         }
     </style>
     
@@ -256,7 +349,7 @@
 <body>
     @auth
     <!-- Topbar -->
-    <nav class="topbar d-flex justify-content-between align-items-center">
+    <nav class="topbar">
         <div class="d-flex align-items-center">
             <button id="sidebarToggleBtn" class="btn">
                 <i class="fas fa-bars"></i>
@@ -295,11 +388,11 @@
 
     <!-- Sidebar -->
     <div class="sidebar">
-        <div class="sidebar-brand text-center text-white mb-4">
+        <div class="sidebar-brand text-center text-white">
             <div class="sidebar-brand-icon">
-                <i class="fas fa-school fa-2x"></i>
+                <i class="fas fa-school"></i>
             </div>
-            <div class="sidebar-brand-text mt-2">SYNCHROGEST</div>
+            <div class="sidebar-brand-text">SYNCHROGEST</div>
         </div>
         
         <hr class="sidebar-divider">
@@ -310,7 +403,7 @@
                 <a class="nav-link {{ request()->routeIs('inscriptions.dashboard') ? 'active' : '' }}" href="{{ route('inscriptions.dashboard') }}">
                     <i class="fas fa-fw fa-tachometer-alt"></i>
                     <span>Tableau de bord</span>
-                    </a>
+                </a>
             </div>
             
             <hr class="sidebar-divider">
@@ -380,6 +473,26 @@
                     <span>Paramètres</span>
                 </a>
             </div>
+            
+            <hr class="sidebar-divider">
+            
+            <div class="sidebar-heading">TRANSACTIONS</div>
+            <div class="nav-item">
+                <a class="nav-link {{ request()->routeIs('finances.transactions') ? 'active' : '' }}" href="{{ route('finances.transactions') }}">
+                    <i class="fas fa-fw fa-exchange-alt"></i>
+                    <span>Gestion Transactions</span>
+                </a>
+            </div>
+            
+            <hr class="sidebar-divider">
+            
+            <div class="sidebar-heading">RAPPORTS</div>
+            <div class="nav-item">
+                <a class="nav-link {{ request()->routeIs('finances.rapports') ? 'active' : '' }}" href="{{ route('finances.rapports') }}">
+                    <i class="fas fa-fw fa-chart-bar"></i>
+                    <span>Rapports Financiers</span>
+                </a>
+            </div>
         @endif
         
         @if(Auth::user()->profil == 'matiere')
@@ -398,6 +511,16 @@
                 <a class="nav-link {{ request()->routeIs('matieres.parametres') ? 'active' : '' }}" href="{{ route('matieres.parametres') }}">
                     <i class="fas fa-fw fa-cogs"></i>
                     <span>Paramètres</span>
+                </a>
+            </div>
+            
+            <hr class="sidebar-divider">
+            
+            <div class="sidebar-heading">INVENTAIRE</div>
+            <div class="nav-item">
+                <a class="nav-link {{ request()->routeIs('matieres.inventaire') ? 'active' : '' }}" href="{{ route('matieres.parametres') }}">
+                    <i class="fas fa-fw fa-boxes"></i>
+                    <span>Gestion Stock</span>
                 </a>
             </div>
         @endif

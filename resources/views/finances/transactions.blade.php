@@ -137,6 +137,9 @@
                                     <button type="button" class="btn btn-sm btn-info view-transaction-btn" data-transaction-id="{{ $transaction->id }}" title="Voir détails">
                                         <i class="fas fa-eye"></i>
                                     </button>
+                                    <a href="{{ route('finances.recu', $transaction->id) }}" class="btn btn-sm btn-primary" title="Voir reçu">
+                                        <i class="fas fa-receipt"></i>
+                                    </a>
                                     <button type="button" class="btn btn-sm btn-warning edit-transaction-btn" data-transaction-id="{{ $transaction->id }}" title="Modifier">
                                         <i class="fas fa-edit"></i>
                                     </button>
@@ -288,10 +291,11 @@
                     </table>
                 </div>
             </div>
+            <!-- Dans le modal de détails de transaction -->
             <div class="modal-footer">
-                <button type="button" class="btn btn-primary" id="printTransactionBtn">
-                    <i class="fas fa-print me-2"></i> Imprimer
-                </button>
+                <a id="printTransactionBtn" class="btn btn-primary">
+                    <i class="fas fa-receipt me-2"></i> Voir le reçu
+                </a>
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
             </div>
         </div>
@@ -396,6 +400,16 @@
             btn.addEventListener('click', function() {
                 const transactionId = this.getAttribute('data-transaction-id');
                 
+                        // Afficher le spinner et cacher les détails
+                document.querySelector('#viewTransactionModal .spinner-border').style.display = 'inline-block';
+                document.getElementById('transactionDetails').style.display = 'none';
+                
+                viewTransactionModal.show();
+                
+                // Mettre à jour le bouton d'impression avec le lien vers le reçu
+                document.getElementById('printTransactionBtn').onclick = function() {
+                    window.open('{{ url("finances/transactions") }}/' + transactionId + '/recu', '_blank');
+                };
                 // TODO: Remplacer par une requête AJAX réelle
                 // Pour l'instant, nous simulons des données
                 setTimeout(() => {
