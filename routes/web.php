@@ -51,10 +51,25 @@ Route::prefix('inscriptions')->middleware('auth')->group(function () {
 
 // Module Finance
 Route::prefix('finances')->middleware('auth')->group(function () {
+    // Dashboard
     Route::get('/', [FinanceController::class, 'dashboard'])->name('finances.dashboard');
-    Route::get('/parametres', [ParametreController::class, 'finance'])->name('finances.parametres');
     
-    // Ajouter ici les autres routes du module finance au fur et à mesure du développement
+    // Paramètres financiers
+    Route::get('/parametres', [FinanceController::class, 'parametres'])->name('finances.parametres');
+    Route::post('/parametres', [FinanceController::class, 'saveParametres'])->name('finances.saveParametres');
+    
+    // Transactions
+    Route::get('/transactions', [FinanceController::class, 'transactions'])->name('finances.transactions');
+    Route::post('/transactions', [FinanceController::class, 'ajouterTransaction'])->name('finances.ajouterTransaction');
+    Route::delete('/transactions/{id}', [FinanceController::class, 'supprimerTransaction'])->name('finances.supprimerTransaction');
+    
+    // Catégories
+    Route::post('/categories', [FinanceController::class, 'ajouterCategorie'])->name('finances.ajouterCategorie');
+    Route::delete('/categories/{id}', [FinanceController::class, 'supprimerCategorie'])->name('finances.supprimerCategorie');
+    
+    // Rapports
+    Route::get('/rapports', [FinanceController::class, 'rapports'])->name('finances.rapports');
+    Route::post('/rapports/generer', [FinanceController::class, 'genererRapport'])->name('finances.genererRapport');
 });
 
 // Module Matière
