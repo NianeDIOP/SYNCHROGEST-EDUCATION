@@ -6,26 +6,26 @@
 @section('content')
 <!-- Page Heading -->
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h1 class="h3 text-gray-800">Aperçu de l'année scolaire {{ $parametres->annee_scolaire ?? '' }}</h1>
-    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#refreshDataModal">
-        <i class="material-icons-round">refresh</i> Actualiser
+    <h1 class="h3 text-gray-800">Aperçu de l'année scolaire {{ $parametres->annee_scolaire ?? 'Non définie' }}</h1>
+    <button class="btn btn-primary" id="refreshBtn">
+        <i class="fas fa-sync-alt"></i> Actualiser
     </button>
 </div>
 
-<!-- Content Row -->
+<!-- Content Row - Statistics Cards -->
 <div class="row">
     <!-- Total Élèves Card -->
     <div class="col-xl-3 col-md-6 mb-4">
         <div class="card border-left-primary shadow h-100 py-2">
             <div class="card-body">
-            <div class="row no-gutters align-items-center">
+                <div class="row no-gutters align-items-center">
                     <div class="col mr-2">
                         <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
-                            Total des élèves</div>
+                            TOTAL DES ÉLÈVES</div>
                         <div class="h5 mb-0 font-weight-bold text-gray-800">{{ number_format($totalEleves) }}</div>
                     </div>
                     <div class="col-auto">
-                        <i class="material-icons-round text-gray-300" style="font-size: 2.5rem;">group</i>
+                        <i class="fas fa-users fa-2x text-gray-300"></i>
                     </div>
                 </div>
             </div>
@@ -39,11 +39,11 @@
                 <div class="row no-gutters align-items-center">
                     <div class="col mr-2">
                         <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
-                            Élèves inscrits</div>
+                            ÉLÈVES INSCRITS</div>
                         <div class="h5 mb-0 font-weight-bold text-gray-800">{{ number_format($totalInscrits) }}</div>
                     </div>
                     <div class="col-auto">
-                        <i class="material-icons-round text-gray-300" style="font-size: 2.5rem;">how_to_reg</i>
+                        <i class="fas fa-user-check fa-2x text-gray-300"></i>
                     </div>
                 </div>
             </div>
@@ -57,11 +57,11 @@
                 <div class="row no-gutters align-items-center">
                     <div class="col mr-2">
                         <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
-                            Nouveaux élèves</div>
+                            NOUVEAUX ÉLÈVES</div>
                         <div class="h5 mb-0 font-weight-bold text-gray-800">{{ number_format($nouveauxInscrits) }}</div>
                     </div>
                     <div class="col-auto">
-                        <i class="material-icons-round text-gray-300" style="font-size: 2.5rem;">person_add</i>
+                        <i class="fas fa-user-plus fa-2x text-gray-300"></i>
                     </div>
                 </div>
             </div>
@@ -75,7 +75,7 @@
                 <div class="row no-gutters align-items-center">
                     <div class="col mr-2">
                         <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
-                            Taux d'inscription</div>
+                            TAUX D'INSCRIPTION</div>
                         <div class="row no-gutters align-items-center">
                             <div class="col-auto">
                                 <div class="h5 mb-0 mr-3 font-weight-bold text-gray-800">
@@ -87,13 +87,13 @@
                             </div>
                             <div class="col">
                                 <div class="progress progress-sm mr-2">
-                                    <div class="progress-bar bg-warning" role="progressbar" style="width: {{ $tauxRemplissage }}%"></div>
+                                    <div class="progress-bar bg-warning" role="progressbar" style="width: {{ min(100, $tauxRemplissage) }}%"></div>
                                 </div>
                             </div>
                         </div>
                     </div>
                     <div class="col-auto">
-                        <i class="material-icons-round text-gray-300" style="font-size: 2.5rem;">trending_up</i>
+                        <i class="fas fa-percentage fa-2x text-gray-300"></i>
                     </div>
                 </div>
             </div>
@@ -101,7 +101,7 @@
     </div>
 </div>
 
-<!-- Content Row -->
+<!-- Content Row - Charts -->
 <div class="row">
     <!-- Inscriptions par niveau -->
     <div class="col-xl-8 col-lg-7">
@@ -110,21 +110,30 @@
                 <h6 class="m-0 font-weight-bold text-primary">Inscriptions par niveau</h6>
                 <div class="dropdown no-arrow">
                     <a class="dropdown-toggle" href="#" role="button" id="dropdownMenuLink" data-bs-toggle="dropdown" aria-expanded="false">
-                        <i class="material-icons-round text-gray-400">more_vert</i>
+                        <i class="fas fa-ellipsis-v fa-sm fa-fw text-gray-400"></i>
                     </a>
-                    <div class="dropdown-menu dropdown-menu-right shadow animated--fade-in" aria-labelledby="dropdownMenuLink">
-                        <div class="dropdown-header">Options:</div>
-                        <a class="dropdown-item" href="#">Exporter en PDF</a>
-                        <a class="dropdown-item" href="#">Exporter en Excel</a>
-                        <div class="dropdown-divider"></div>
-                        <a class="dropdown-item" href="{{ route('inscriptions.rapports') }}">Voir tous les rapports</a>
-                    </div>
+                    <ul class="dropdown-menu dropdown-menu-end shadow animated--fade-in" aria-labelledby="dropdownMenuLink">
+                        <li><h6 class="dropdown-header">Options:</h6></li>
+                        <li><a class="dropdown-item" href="#"><i class="fas fa-file-pdf me-2"></i>Exporter en PDF</a></li>
+                        <li><a class="dropdown-item" href="#"><i class="fas fa-file-excel me-2"></i>Exporter en Excel</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="{{ route('inscriptions.rapports') }}"><i class="fas fa-chart-bar me-2"></i>Voir tous les rapports</a></li>
+                    </ul>
                 </div>
             </div>
             <div class="card-body">
-                <div class="chart-bar">
-                    <canvas id="inscriptionsParNiveauChart" height="300"></canvas>
-                </div>
+                @if(isset($inscriptionsParNiveau) && $inscriptionsParNiveau->count() > 0)
+                    <div class="chart-bar">
+                        <canvas id="inscriptionsParNiveauChart" height="300"></canvas>
+                    </div>
+                @else
+                    <div class="alert alert-info">
+                        <div class="d-flex align-items-center">
+                            <i class="fas fa-info-circle me-2"></i>
+                            <div>Aucune donnée disponible sur les inscriptions par niveau.</div>
+                        </div>
+                    </div>
+                @endif
             </div>
         </div>
     </div>
@@ -136,25 +145,34 @@
                 <h6 class="m-0 font-weight-bold text-primary">Répartition par statut</h6>
                 <div class="dropdown no-arrow">
                     <a class="dropdown-toggle" href="#" role="button" id="dropdownMenuLink2" data-bs-toggle="dropdown" aria-expanded="false">
-                        <i class="material-icons-round text-gray-400">more_vert</i>
+                        <i class="fas fa-ellipsis-v fa-sm fa-fw text-gray-400"></i>
                     </a>
-                    <div class="dropdown-menu dropdown-menu-right shadow animated--fade-in" aria-labelledby="dropdownMenuLink2">
-                        <div class="dropdown-header">Options:</div>
-                        <a class="dropdown-item" href="#">Exporter en PDF</a>
-                        <a class="dropdown-item" href="#">Exporter en Excel</a>
-                    </div>
+                    <ul class="dropdown-menu dropdown-menu-end shadow animated--fade-in" aria-labelledby="dropdownMenuLink2">
+                        <li><h6 class="dropdown-header">Options:</h6></li>
+                        <li><a class="dropdown-item" href="#"><i class="fas fa-file-pdf me-2"></i>Exporter en PDF</a></li>
+                        <li><a class="dropdown-item" href="#"><i class="fas fa-file-excel me-2"></i>Exporter en Excel</a></li>
+                    </ul>
                 </div>
             </div>
             <div class="card-body">
-                <div class="chart-pie">
-                    <canvas id="typeElevesChart" height="300"></canvas>
-                </div>
+                @if(isset($totalInscrits) && $totalInscrits > 0)
+                    <div class="chart-pie">
+                        <canvas id="typeElevesChart" height="300"></canvas>
+                    </div>
+                @else
+                    <div class="alert alert-info">
+                        <div class="d-flex align-items-center">
+                            <i class="fas fa-info-circle me-2"></i>
+                            <div>Aucune donnée disponible sur la répartition des élèves.</div>
+                        </div>
+                    </div>
+                @endif
             </div>
         </div>
     </div>
 </div>
 
-<!-- Content Row -->
+<!-- Content Row - Tables -->
 <div class="row">
     <!-- Dernières inscriptions -->
     <div class="col-lg-6 mb-4">
@@ -170,29 +188,35 @@
                                 <th>Élève</th>
                                 <th>Classe</th>
                                 <th>Date</th>
-                                <th>Actions</th>
+                                <th class="text-center">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
-                            @for ($i = 0; $i < 5; $i++)
-                            <tr>
-                                <td>Elève {{ $i+1 }}</td>
-                                <td>6ème A</td>
-                                <td>{{ date('d/m/Y', strtotime('-'.$i.' days')) }}</td>
-                                <td>
-                                    <a href="#" class="btn btn-sm btn-primary">
-                                        <i class="material-icons-round">visibility</i>
-                                    </a>
-                                </td>
-                            </tr>
-                            @endfor
+                            @if(isset($dernieresInscriptions) && $dernieresInscriptions->count() > 0)
+                                @foreach($dernieresInscriptions as $inscription)
+                                <tr>
+                                    <td>{{ $inscription->eleve->nom }} {{ $inscription->eleve->prenom }}</td>
+                                    <td>{{ $inscription->classe->niveau->nom }} - {{ $inscription->classe->nom }}</td>
+                                    <td>{{ $inscription->date_inscription->format('d/m/Y') }}</td>
+                                    <td class="text-center">
+                                        <a href="{{ route('inscriptions.recu', $inscription->id) }}" class="btn btn-sm btn-primary">
+                                            <i class="fas fa-eye"></i>
+                                        </a>
+                                    </td>
+                                </tr>
+                                @endforeach
+                            @else
+                                <tr>
+                                    <td colspan="4" class="text-center">Aucune inscription récente</td>
+                                </tr>
+                            @endif
                         </tbody>
                     </table>
                 </div>
                 <div class="text-center mt-3">
                     <a href="{{ route('inscriptions.eleves') }}" class="btn btn-primary btn-sm">
                         Voir toutes les inscriptions
-                        <i class="material-icons-round">arrow_forward</i>
+                        <i class="fas fa-arrow-right ms-1"></i>
                     </a>
                 </div>
             </div>
@@ -206,37 +230,37 @@
                 <h6 class="m-0 font-weight-bold text-primary">Classes à forte demande</h6>
             </div>
             <div class="card-body">
-                @for ($i = 0; $i < 5; $i++)
-                <h4 class="small font-weight-bold">
-                    6ème A 
-                    <span class="float-end">{{ 80 - ($i * 10) }}%</span>
-                </h4>
-                <div class="progress mb-4">
-                    <div class="progress-bar bg-{{ $i === 0 ? 'danger' : ($i === 1 ? 'warning' : ($i === 2 ? 'primary' : 'info')) }}" 
-                         role="progressbar" style="width: {{ 80 - ($i * 10) }}%"></div>
-                </div>
-                @endfor
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Refresh Data Modal -->
-<div class="modal fade" id="refreshDataModal" tabindex="-1" aria-labelledby="refreshDataModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="refreshDataModalLabel">Actualiser les données</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <p>Voulez-vous actualiser les données du tableau de bord ?</p>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
-                <button type="button" class="btn btn-primary" onclick="location.reload();">
-                    <i class="material-icons-round">refresh</i> Actualiser
-                </button>
+                @if(isset($classesFortes) && $classesFortes->count() > 0)
+                    @foreach($classesFortes as $index => $classe)
+                        <h4 class="small font-weight-bold">
+                            {{ $classe->niveau_nom }} - {{ $classe->nom }}
+                            <span class="float-end">{{ number_format($classe->taux_remplissage, 1) }}% ({{ $classe->inscrits }}/{{ $classe->capacite }})</span>
+                        </h4>
+                        <div class="progress mb-4">
+                            @php
+                                $color = '';
+                                if ($classe->taux_remplissage >= 90) {
+                                    $color = 'danger';
+                                } elseif ($classe->taux_remplissage >= 75) {
+                                    $color = 'warning';
+                                } elseif ($classe->taux_remplissage >= 50) {
+                                    $color = 'primary';
+                                } else {
+                                    $color = 'info';
+                                }
+                            @endphp
+                            <div class="progress-bar bg-{{ $color }}" 
+                                role="progressbar" style="width: {{ min(100, $classe->taux_remplissage) }}%"></div>
+                        </div>
+                    @endforeach
+                @else
+                    <div class="alert alert-info">
+                        <div class="d-flex align-items-center">
+                            <i class="fas fa-info-circle me-2"></i>
+                            <div>Aucune donnée disponible sur les classes.</div>
+                        </div>
+                    </div>
+                @endif
             </div>
         </div>
     </div>
@@ -244,8 +268,15 @@
 @endsection
 
 @section('scripts')
+<script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.1/dist/chart.min.js"></script>
 <script>
     document.addEventListener('DOMContentLoaded', function() {
+        // Actualisation du tableau de bord
+        document.getElementById('refreshBtn').addEventListener('click', function() {
+            location.reload();
+        });
+        
+        @if(isset($inscriptionsParNiveau) && $inscriptionsParNiveau->count() > 0)
         // Bar Chart - Inscriptions par niveau
         const niveauCtx = document.getElementById('inscriptionsParNiveauChart').getContext('2d');
         const niveauChart = new Chart(niveauCtx, {
@@ -341,7 +372,9 @@
                 }
             }
         });
+        @endif
         
+        @if(isset($nouveauxInscrits) && isset($totalInscrits) && $totalInscrits > 0)
         // Pie Chart - Répartition par type
         const typeCtx = document.getElementById('typeElevesChart').getContext('2d');
         const typeChart = new Chart(typeCtx, {
@@ -387,6 +420,7 @@
                 }
             }
         });
+        @endif
     });
 </script>
 @endsection

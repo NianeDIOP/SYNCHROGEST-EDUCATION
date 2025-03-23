@@ -15,29 +15,69 @@ use Illuminate\Support\Str;
 class InscriptionController extends Controller
 {
     public function dashboard()
-    {
-        $parametres = Parametre::first();
-        $anneeScolaire = $parametres ? $parametres->annee_scolaire : null;
-        
-        // Statistiques
-        $totalEleves = Eleve::count();
-        $totalInscrits = Inscription::where('annee_scolaire', $anneeScolaire)->count();
-        $nouveauxInscrits = Inscription::where('annee_scolaire', $anneeScolaire)
-            ->whereHas('eleve', function($query) {
-                $query->where('statut', 'Nouveau');
-            })->count();
-        
-        // Inscriptions par niveau
-        $inscriptionsParNiveau = DB::table('inscriptions')
-            ->join('classes', 'inscriptions.classe_id', '=', 'classes.id')
-            ->join('niveaux', 'classes.niveau_id', '=', 'niveaux.id')
-            ->where('inscriptions.annee_scolaire', $anneeScolaire)
-            ->select('niveaux.nom', DB::raw('count(*) as total'))
-            ->groupBy('niveaux.nom')
-            ->get();
-        
-        return view('inscriptions.dashboard', compact('parametres', 'totalEleves', 'totalInscrits', 'nouveauxInscrits', 'inscriptionsParNiveau'));
-    }
+{
+    // Récupérer les paramètres de l'établissement
+    $parametres = Parametre::first();
+    $anneeScolaire = $parametres ? $parametres->annee_scolaire : null;
+    
+    // Statistiques de base
+    $totalEleves = Eleve::count();
+    $totalInscrits = Inscription::where('annee_scolaire', $anneeScolaire)->count();
+    $nouveauxInscrits = Inscription::where('annee_scolaire', $anneeScolaire)
+        ->whereHas('eleve', function($query) {
+            $query->where('statut', 'Nouveau');
+        })->count();
+    
+    // Calcul des anciens élèves
+    $anciensInscrits = Inscription::where('annee_scolaire', $anneeScolaire)
+        ->whereHas('eleve', function($query) {
+            $query->where('statut', '<>', 'Nouveau');
+        })->count();
+    
+    // Inscriptions par niveau
+    $inscriptionsParNiveau = DB::table('inscriptions')
+        ->join('classes', 'inscriptions.classe_id', '=', 'classes.id')
+        ->join('niveaux', 'classes.niveau_id', '=', 'niveaux.id')
+        ->where('inscriptions.annee_scolaire', $anneeScolaire)
+        ->select('niveaux.nom', DB::raw('count(*) as total'))
+        ->groupBy('niveaux.id', 'niveaux.nom')
+        ->get();
+    
+    // Dernières inscriptions avec toutes les informations associées
+    $dernieresInscriptions = Inscription::with(['eleve', 'classe.niveau'])
+        ->where('annee_scolaire', $anneeScolaire)
+        ->orderBy('date_inscription', 'desc')
+        ->limit(5)
+        ->get();
+    
+    // Classes à forte demande (taux de remplissage élevé)
+    $classesFortes = DB::table('classes')
+        ->leftJoin(DB::raw("(SELECT classe_id, COUNT(*) as total FROM inscriptions WHERE annee_scolaire = '{$anneeScolaire}' GROUP BY classe_id) as ins"), 
+            'classes.id', '=', 'ins.classe_id')
+        ->join('niveaux', 'classes.niveau_id', '=', 'niveaux.id')
+        ->select(
+            'classes.id', 
+            'classes.nom', 
+            'niveaux.nom as niveau_nom', 
+            'classes.capacite', 
+            DB::raw('COALESCE(ins.total, 0) as inscrits'), 
+            DB::raw('ROUND(COALESCE(ins.total, 0) * 100 / NULLIF(classes.capacite, 0), 1) as taux_remplissage')
+        )
+        ->orderBy('taux_remplissage', 'desc')
+        ->limit(5)
+        ->get();
+    
+    return view('inscriptions.dashboard', compact(
+        'parametres', 
+        'totalEleves', 
+        'totalInscrits', 
+        'nouveauxInscrits', 
+        'anciensInscrits',
+        'inscriptionsParNiveau', 
+        'dernieresInscriptions', 
+        'classesFortes'
+    ));
+}
 
     public function parametres()
     {
@@ -183,96 +223,203 @@ class InscriptionController extends Controller
     }
 
     public function showImport()
-    {
-        $niveaux = Niveau::with('classes')->get();
+{
+    $niveaux = Niveau::with('classes')->get();
+    
+    return view('inscriptions.import', compact('niveaux'));
+}
+
+public function processImport(Request $request)
+{
+    $request->validate([
+        'file' => 'required|file|mimes:xlsx,xls,csv',
+        'classe_id' => 'required|exists:classes,id',
+    ]);
+
+    $classe = Classe::with('niveau')->findOrFail($request->classe_id);
+
+    if ($request->hasFile('file')) {
+        // Stocker le fichier temporairement
+        $path = $request->file('file')->store('temp');
         
-        return view('inscriptions.import', compact('niveaux'));
-    }
-
-    public function processImport(Request $request)
-    {
-        $request->validate([
-            'file' => 'required|file|mimes:xlsx,xls,csv',
-            'classe_id' => 'required|exists:classes,id',
+        // Renvoyer avec les informations nécessaires pour le traitement côté client
+        return redirect()->route('inscriptions.import')->with([
+            'success' => 'Fichier importé avec succès. Veuillez vérifier les données avant de finaliser l\'importation.',
+            'file_path' => $path,
+            'classe_id' => $request->classe_id,
+            'classe_nom' => $classe->nom,
+            'niveau_nom' => $classe->niveau->nom,
         ]);
-
-        $classe = Classe::with('niveau')->findOrFail($request->classe_id);
-
-        if ($request->hasFile('file')) {
-            // Stocker le fichier temporairement
-            $path = $request->file('file')->store('temp');
-            
-            // Analyser le fichier Excel (cela sera fait côté client avec JavaScript)
-            // Ici, nous redirigeons simplement vers la même page avec un message de succès
-            
-            return redirect()->route('inscriptions.import')->with([
-                'success' => 'Fichier importé avec succès. Veuillez vérifier les données avant de finaliser l\'importation.',
-                'file_path' => $path,
-                'classe_id' => $request->classe_id,
-                'classe_nom' => $classe->nom,
-                'niveau_nom' => $classe->niveau->nom,
-            ]);
-        }
-
-        return redirect()->route('inscriptions.import')->with('error', 'Erreur lors du téléchargement du fichier');
     }
 
-    public function saveImportedData(Request $request)
-    {
+    return redirect()->route('inscriptions.import')->with('error', 'Erreur lors du téléchargement du fichier');
+}
+
+public function saveImportedData(Request $request)
+{
+    try {
         $request->validate([
             'eleves' => 'required|array',
             'eleves.*.ine' => 'required|string|unique:eleves,ine',
             'eleves.*.prenom' => 'required|string',
             'eleves.*.nom' => 'required|string',
-            'eleves.*.sexe' => 'required|in:M,F',
-            'eleves.*.date_naissance' => 'required|date',
+            'eleves.*.sexe' => 'required|string',
+            'eleves.*.date_naissance' => 'required',
             'eleves.*.lieu_naissance' => 'required|string',
-            'eleves.*.existence_extrait' => 'boolean',
             'eleves.*.classe_id' => 'required|exists:classes,id',
-            'eleves.*.motif_entre' => 'nullable|string',
-            'eleves.*.statut' => 'required|in:Nouveau,Ancien,Redoublant',
         ]);
 
         DB::beginTransaction();
-        try {
-            foreach ($request->eleves as $eleveData) {
-                Eleve::create($eleveData);
-            }
-            DB::commit();
-            return response()->json(['success' => true, 'message' => 'Élèves importés avec succès']);
-        } catch (\Exception $e) {
-            DB::rollBack();
-            return response()->json(['success' => false, 'message' => 'Erreur lors de l\'importation: ' . $e->getMessage()], 500);
-        }
-    }
-
-    public function eleves(Request $request)
-    {
-        $query = Eleve::query()->with('classe.niveau');
+        $count = 0;
         
-        // Filtrage
-        if ($request->has('search') && !empty($request->search)) {
-            $search = $request->search;
-            $query->where(function($q) use ($search) {
-                $q->where('ine', 'like', "%{$search}%")
-                  ->orWhere('nom', 'like', "%{$search}%")
-                  ->orWhere('prenom', 'like', "%{$search}%");
+        foreach ($request->eleves as $eleveData) {
+            // Normaliser les données
+            $sexe = strtoupper($eleveData['sexe']);
+            if ($sexe == 'H') $sexe = 'M'; // Convertir 'H' en 'M'
+            
+            // Normaliser le statut
+            $statut = 'Nouveau'; // Par défaut
+            if (isset($eleveData['statut'])) {
+                if (str_contains(strtolower($eleveData['statut']), 'passant')) {
+                    $statut = 'Ancien';
+                } elseif (str_contains(strtolower($eleveData['statut']), 'redoublant')) {
+                    $statut = 'Redoublant';
+                }
+            }
+            
+            // Convertir existence_extrait
+            $extrait = false;
+            if (isset($eleveData['existence_extrait'])) {
+                if (is_bool($eleveData['existence_extrait'])) {
+                    $extrait = $eleveData['existence_extrait'];
+                } else {
+                    $extrait = strtolower($eleveData['existence_extrait']) === 'oui';
+                }
+            }
+            
+            // Créer l'élève avec les données normalisées
+            Eleve::create([
+                'ine' => $eleveData['ine'],
+                'prenom' => $eleveData['prenom'],
+                'nom' => $eleveData['nom'],
+                'sexe' => $sexe,
+                'date_naissance' => $eleveData['date_naissance'],
+                'lieu_naissance' => $eleveData['lieu_naissance'],
+                'existence_extrait' => $extrait,
+                'classe_id' => $eleveData['classe_id'],
+                'motif_entre' => $eleveData['motif_entre'] ?? null,
+                'statut' => $statut,
+            ]);
+            
+            $count++;
+        }
+        
+        DB::commit();
+        
+        // Destination après sauvegarde
+        $redirectTo = $request->input('redirectTo', 'eleves');
+        
+        $redirectRoutes = [
+            'eleves' => route('inscriptions.eleves'),
+            'parametres' => route('inscriptions.parametres'),
+            'dashboard' => route('inscriptions.dashboard'),
+            'niveaux' => route('inscriptions.niveaux'),
+        ];
+        
+        return response()->json([
+            'success' => true,
+            'message' => $count . ' élèves importés avec succès',
+            'redirect' => $redirectRoutes[$redirectTo] ?? route('inscriptions.eleves')
+        ]);
+    } catch (\Exception $e) {
+        DB::rollBack();
+        \Log::error('Erreur lors de l\'importation des élèves: ' . $e->getMessage(), [
+            'trace' => $e->getTraceAsString()
+        ]);
+        
+        return response()->json([
+            'success' => false,
+            'message' => 'Erreur lors de l\'importation: ' . $e->getMessage()
+        ], 500);
+    }
+}
+
+public function eleves(Request $request)
+{
+    // Base de la requête
+    $query = Eleve::query()->with('classe.niveau');
+    
+    // Récupérer les paramètres de l'application
+    $parametres = Parametre::first();
+    $anneeScolaire = $parametres ? $parametres->annee_scolaire : null;
+    
+    // Filtrage par terme de recherche
+    if ($request->has('search') && !empty($request->search)) {
+        $search = $request->search;
+        $query->where(function($q) use ($search) {
+            $q->where('ine', 'like', "%{$search}%")
+              ->orWhere('nom', 'like', "%{$search}%")
+              ->orWhere('prenom', 'like', "%{$search}%");
+        });
+    }
+    
+    // Filtrage par classe
+    if ($request->has('classe_id') && !empty($request->classe_id)) {
+        $query->where('classe_id', $request->classe_id);
+    }
+    
+    // Filtrage par niveau
+    if ($request->has('niveau_id') && !empty($request->niveau_id)) {
+        $niveauId = $request->niveau_id;
+        $query->whereHas('classe', function($q) use ($niveauId) {
+            $q->where('niveau_id', $niveauId);
+        });
+    }
+    
+    // Filtrage par statut
+    if ($request->has('statut') && !empty($request->statut)) {
+        $query->where('statut', $request->statut);
+    }
+    
+    // Filtrage par inscription
+    if ($request->has('inscription') && !empty($request->inscription)) {
+        if ($request->inscription === 'inscrits') {
+            $query->whereHas('inscriptions', function($q) use ($anneeScolaire) {
+                $q->where('annee_scolaire', $anneeScolaire);
+            });
+        } elseif ($request->inscription === 'non_inscrits') {
+            $query->whereDoesntHave('inscriptions', function($q) use ($anneeScolaire) {
+                $q->where('annee_scolaire', $anneeScolaire);
             });
         }
-        
-        if ($request->has('classe_id') && !empty($request->classe_id)) {
-            $query->where('classe_id', $request->classe_id);
-        }
-        
-        if ($request->has('statut') && !empty($request->statut)) {
-            $query->where('statut', $request->statut);
-        }
-        
-        $eleves = $query->orderBy('nom')->orderBy('prenom')->paginate(15);
-        $classes = Classe::with('niveau')->get();
-        
-        return view('inscriptions.eleves', compact('eleves', 'classes'));
     }
+    
+    // Exécution de la requête
+    $eleves = $query->orderBy('nom')->orderBy('prenom')->paginate(15);
+    
+    // Ajouter des attributs calculés pour chaque élève
+    $eleves->each(function($eleve) use ($anneeScolaire) {
+        // Vérifier si l'élève est inscrit pour l'année scolaire en cours
+        $derniereInscription = $eleve->inscriptions()
+            ->where('annee_scolaire', $anneeScolaire)
+            ->latest()
+            ->first();
+        
+        $eleve->estInscrit = (bool) $derniereInscription;
+        $eleve->derniere_inscription_id = $derniereInscription ? $derniereInscription->id : null;
+    });
+    
+    // Pour le filtre de niveaux
+    $niveaux = Niveau::all();
+    
+    // Pour le filtre de classes
+    $classes = Classe::with('niveau')->get()->map(function($classe) {
+        $classe->setAttribute('data-niveau-id', $classe->niveau_id);
+        return $classe;
+    });
+    
+    return view('inscriptions.eleves', compact('eleves', 'classes', 'niveaux'));
+}
 
     public function showEleve($id)
     {
@@ -326,57 +473,73 @@ class InscriptionController extends Controller
     }
 
     public function enregistrerInscription(Request $request)
-    {
-        $request->validate([
-            'eleve_id' => 'required|exists:eleves,id',
-            'classe_id' => 'required|exists:classes,id',
-            'montant_paye' => 'required|numeric|min:0',
-            'date_inscription' => 'required|date',
+{
+    $request->validate([
+        'eleve_id' => 'required|exists:eleves,id',
+        'classe_id' => 'required|exists:classes,id',
+        'montant_paye' => 'required|numeric|min:0',
+        'date_inscription' => 'required|date',
+    ]);
+    
+    $parametres = Parametre::first();
+    
+    if (!$parametres || !$parametres->annee_scolaire) {
+        return redirect()->back()->with('error', 'Veuillez configurer les paramètres de l\'établissement');
+    }
+    
+    if (!$parametres->annee_active) {
+        return redirect()->back()->with('error', 'L\'année scolaire n\'est pas active pour les inscriptions');
+    }
+    
+    $eleve = Eleve::findOrFail($request->eleve_id);
+    $anneeScolaire = $parametres->annee_scolaire;
+    
+    // Vérifier si l'élève est déjà inscrit pour cette année scolaire
+    $inscriptionExistante = Inscription::where('eleve_id', $eleve->id)
+        ->where('annee_scolaire', $anneeScolaire)
+        ->first();
+    
+    if ($inscriptionExistante) {
+        return redirect()->back()->with('error', 'Cet élève est déjà inscrit pour l\'année scolaire ' . $anneeScolaire);
+    }
+
+    $classe = Classe::with('niveau')->findOrFail($request->classe_id);
+    $fraisTotal = $classe->niveau->frais_inscription;
+    
+    // Ajouter frais d'examen si applicable
+    if ($classe->niveau->est_niveau_examen) {
+        $fraisTotal += $classe->niveau->frais_examen;
+    }
+    
+    $montantRestant = $fraisTotal - $request->montant_paye;
+    $statutPaiement = $montantRestant <= 0 ? 'Complet' : 'Partiel';
+    
+    // Générer numéro de reçu unique
+    $numeroRecu = 'INS-' . date('Y') . '-' . Str::padLeft(Inscription::count() + 1, 4, '0');
+    
+    DB::beginTransaction();
+    try {
+        $inscription = Inscription::create([
+            'eleve_id' => $request->eleve_id,
+            'classe_id' => $request->classe_id,
+            'annee_scolaire' => $anneeScolaire,
+            'date_inscription' => $request->date_inscription,
+            'montant_paye' => $request->montant_paye,
+            'montant_restant' => $montantRestant,
+            'numero_recu' => $numeroRecu,
+            'statut_paiement' => $statutPaiement,
+            'user_id' => auth()->id(),
         ]);
         
-        $parametres = Parametre::first();
+        DB::commit();
         
-        if (!$parametres || !$parametres->annee_scolaire) {
-            return redirect()->back()->with('error', 'Veuillez configurer les paramètres de l\'établissement');
-        }
-
-        $classe = Classe::with('niveau')->findOrFail($request->classe_id);
-        $fraisTotal = $classe->niveau->frais_inscription;
-        
-        // Ajouter frais d'examen si applicable
-        if ($classe->niveau->est_niveau_examen) {
-            $fraisTotal += $classe->niveau->frais_examen;
-        }
-        
-        $montantRestant = $fraisTotal - $request->montant_paye;
-        $statutPaiement = $montantRestant <= 0 ? 'Complet' : 'Partiel';
-        
-        // Générer numéro de reçu unique
-        $numeroRecu = 'INS-' . date('Y') . '-' . Str::padLeft(Inscription::count() + 1, 4, '0');
-        
-        DB::beginTransaction();
-        try {
-            $inscription = Inscription::create([
-                'eleve_id' => $request->eleve_id,
-                'classe_id' => $request->classe_id,
-                'annee_scolaire' => $parametres->annee_scolaire,
-                'date_inscription' => $request->date_inscription,
-                'montant_paye' => $request->montant_paye,
-                'montant_restant' => $montantRestant,
-                'numero_recu' => $numeroRecu,
-                'statut_paiement' => $statutPaiement,
-                'user_id' => auth()->id(),
-            ]);
-            
-            DB::commit();
-            
-            return redirect()->route('inscriptions.recu', ['id' => $inscription->id])
-                ->with('success', 'Inscription enregistrée avec succès');
-        } catch (\Exception $e) {
-            DB::rollBack();
-            return redirect()->back()->with('error', 'Erreur lors de l\'enregistrement: ' . $e->getMessage());
-        }
+        return redirect()->route('inscriptions.recu', ['id' => $inscription->id])
+            ->with('success', 'Inscription enregistrée avec succès');
+    } catch (\Exception $e) {
+        DB::rollBack();
+        return redirect()->back()->with('error', 'Erreur lors de l\'enregistrement: ' . $e->getMessage());
     }
+}
 
     public function recu($id)
     {

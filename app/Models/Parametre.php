@@ -16,5 +16,10 @@ class Parametre extends Model
         'email',
         'logo_path',
         'annee_scolaire',
+        'annee_active',
+    ];
+    
+    protected $casts = [
+        'annee_active' => 'boolean',
     ];
 }

@@ -6,7 +6,6 @@ use App\Models\Parametre;
 use App\Models\Niveau;
 use App\Models\Classe;
 use Illuminate\Http\Request;
-use Inertia\Inertia;
 
 class ParametreController extends Controller
 {
@@ -14,8 +13,9 @@ class ParametreController extends Controller
     {
         $parametres = Parametre::first();
         $niveaux = Niveau::with('classes')->get();
-
-        return Inertia::render('Inscription/Parametres', [
+        
+        // Utiliser la vue Blade au lieu d'Inertia
+        return view('inscriptions.parametres', [
             'parametres' => $parametres,
             'niveaux' => $niveaux,
         ]);
@@ -29,18 +29,21 @@ class ParametreController extends Controller
             'adresse' => 'nullable|string|max:255',
             'telephone' => 'nullable|string|max:20',
             'email' => 'nullable|email|max:255',
-            'annee_scolaire' => 'required|string|max:9',
-            'niveaux' => 'required|array',
-            'niveaux.*.nom' => 'required|string|max:50',
-            'niveaux.*.frais_inscription' => 'required|numeric|min:0',
-            'niveaux.*.frais_scolarite' => 'required|numeric|min:0',
-            'niveaux.*.est_niveau_examen' => 'boolean',
-            'niveaux.*.frais_examen' => 'nullable|numeric|min:0',
-            'niveaux.*.classes' => 'required|array',
-            'niveaux.*.classes.*.nom' => 'required|string|max:50',
-            'niveaux.*.classes.*.capacite' => 'required|integer|min:1',
+            'annee_scolaire' => 'required|string|regex:/^\d{4}-\d{4}$/',
+        ], [
+            'annee_scolaire.regex' => 'Le format de l\'année scolaire doit être AAAA-AAAA (exemple: 2024-2025)'
         ]);
-
+        
+        // Valider le format de l'année scolaire
+        $years = explode('-', $request->annee_scolaire);
+        if (count($years) == 2) {
+            if (intval($years[1]) !== intval($years[0]) + 1) {
+                return redirect()->back()->withErrors([
+                    'annee_scolaire' => 'L\'année de fin doit être l\'année de début + 1'
+                ])->withInput();
+            }
+        }
+        
         // Enregistrer ou mettre à jour les paramètres généraux
         Parametre::updateOrCreate(
             ['id' => 1],
@@ -50,35 +53,10 @@ class ParametreController extends Controller
                 'telephone' => $request->telephone,
                 'email' => $request->email,
                 'annee_scolaire' => $request->annee_scolaire,
+                'annee_active' => $request->has('annee_active'),
             ]
         );
-
-        // Traiter les niveaux et classes
-        foreach ($request->niveaux as $niveauData) {
-            $niveau = Niveau::updateOrCreate(
-                ['id' => $niveauData['id'] ?? null],
-                [
-                    'nom' => $niveauData['nom'],
-                    'frais_inscription' => $niveauData['frais_inscription'],
-                    'frais_scolarite' => $niveauData['frais_scolarite'],
-                    'est_niveau_examen' => $niveauData['est_niveau_examen'] ?? false,
-                    'frais_examen' => $niveauData['frais_examen'] ?? 0,
-                ]
-            );
-
-            // Gérer les classes de ce niveau
-            foreach ($niveauData['classes'] as $classeData) {
-                Classe::updateOrCreate(
-                    ['id' => $classeData['id'] ?? null],
-                    [
-                        'niveau_id' => $niveau->id,
-                        'nom' => $classeData['nom'],
-                        'capacite' => $classeData['capacite'],
-                    ]
-                );
-            }
-        }
-
+        
         return redirect()->back()->with('success', 'Paramètres enregistrés avec succès');
     }
 
@@ -86,7 +64,8 @@ class ParametreController extends Controller
     {
         $parametres = Parametre::first();
         
-        return Inertia::render('Finance/Parametres', [
+        // Utiliser la vue Blade au lieu d'Inertia
+        return view('finances.parametres', [
             'parametres' => $parametres,
         ]);
     }
@@ -95,7 +74,8 @@ class ParametreController extends Controller
     {
         $parametres = Parametre::first();
         
-        return Inertia::render('Matiere/Parametres', [
+        // Utiliser la vue Blade au lieu d'Inertia
+        return view('matieres.parametres', [
             'parametres' => $parametres,
         ]);
     }

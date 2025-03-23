@@ -5,6 +5,7 @@ use App\Http\Controllers\InscriptionController;
 use App\Http\Controllers\FinanceController;
 use App\Http\Controllers\MatiereController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\ParametreController;
 
 // Page d'accueil
 Route::get('/', function () {
@@ -21,8 +22,8 @@ Route::prefix('inscriptions')->middleware('auth')->group(function () {
     Route::get('/', [InscriptionController::class, 'dashboard'])->name('inscriptions.dashboard');
     
     // Paramètres
-    Route::get('/parametres', [InscriptionController::class, 'parametres'])->name('inscriptions.parametres');
-    Route::post('/parametres', [InscriptionController::class, 'saveParametres']);
+    Route::get('/parametres', [ParametreController::class, 'inscription'])->name('inscriptions.parametres');
+    Route::post('/parametres', [ParametreController::class, 'saveInscription']);
     
     // Niveaux et classes
     Route::get('/niveaux', [InscriptionController::class, 'niveaux'])->name('inscriptions.niveaux');
@@ -35,13 +36,9 @@ Route::prefix('inscriptions')->middleware('auth')->group(function () {
     
     // Élèves
     Route::get('/eleves', [InscriptionController::class, 'eleves'])->name('inscriptions.eleves');
-    Route::get('/eleves/{id}', [InscriptionController::class, 'showEleve']);
-    Route::delete('/eleves/{id}', [InscriptionController::class, 'deleteEleve']);
-    // Élèves
-    Route::get('/inscriptions/eleves', [InscriptionController::class, 'eleves'])->name('inscriptions.eleves');
-    Route::get('/inscriptions/eleves/{id}', [InscriptionController::class, 'showEleve']);
-    Route::delete('/inscriptions/eleves/{id}', [InscriptionController::class, 'deleteEleve']);
-        
+    Route::get('/eleves/{id}', [InscriptionController::class, 'showEleve'])->name('inscriptions.showEleve');
+    Route::delete('/eleves/{id}', [InscriptionController::class, 'deleteEleve'])->name('inscriptions.deleteEleve');
+    
     // Inscription
     Route::get('/nouvelle', [InscriptionController::class, 'nouvelleInscription'])->name('inscriptions.nouvelle');
     Route::post('/nouvelle', [InscriptionController::class, 'enregistrerInscription']);
@@ -52,15 +49,18 @@ Route::prefix('inscriptions')->middleware('auth')->group(function () {
     Route::post('/rapports/generer', [InscriptionController::class, 'genererRapport'])->name('inscriptions.genererRapport');
 });
 
-// Module Finance (juste les routes de base pour l'instant)
+// Module Finance
 Route::prefix('finances')->middleware('auth')->group(function () {
     Route::get('/', [FinanceController::class, 'dashboard'])->name('finances.dashboard');
-    Route::get('/parametres', [FinanceController::class, 'parametres'])->name('finances.parametres');
+    Route::get('/parametres', [ParametreController::class, 'finance'])->name('finances.parametres');
+    
+    // Ajouter ici les autres routes du module finance au fur et à mesure du développement
 });
 
-// Module Matière (juste les routes de base pour l'instant)
+// Module Matière
 Route::prefix('matieres')->middleware('auth')->group(function () {
     Route::get('/', [MatiereController::class, 'dashboard'])->name('matieres.dashboard');
-    Route::get('/parametres', [MatiereController::class, 'parametres'])->name('matieres.parametres');
+    Route::get('/parametres', [ParametreController::class, 'matiere'])->name('matieres.parametres');
+    
+    // Ajouter ici les autres routes du module matière au fur et à mesure du développement
 });
-

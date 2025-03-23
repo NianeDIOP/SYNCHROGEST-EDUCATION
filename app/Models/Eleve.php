@@ -39,4 +39,27 @@ class Eleve extends Model
     {
         return $this->hasMany(Inscription::class);
     }
+    
+    public function getEstInscritAttribute()
+    {
+        $parametres = Parametre::first();
+        $anneeScolaire = $parametres ? $parametres->annee_scolaire : null;
+        
+        return $this->inscriptions()
+            ->where('annee_scolaire', $anneeScolaire)
+            ->exists();
+    }
+    
+    public function getDerniereInscriptionIdAttribute()
+    {
+        $parametres = Parametre::first();
+        $anneeScolaire = $parametres ? $parametres->annee_scolaire : null;
+        
+        $inscription = $this->inscriptions()
+            ->where('annee_scolaire', $anneeScolaire)
+            ->latest()
+            ->first();
+            
+        return $inscription ? $inscription->id : null;
+    }
 }
