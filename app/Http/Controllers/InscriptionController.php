@@ -11,6 +11,10 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use PDF;
+use Maatwebsite\Excel\Facades\Excel;
+use App\Exports\InscriptionExport;
+
 
 class InscriptionController extends Controller
 {
@@ -558,50 +562,87 @@ public function eleves(Request $request)
     }
     
     public function genererRapport(Request $request)
-    {
-        $request->validate([
-            'type' => 'required|in:general,niveau,classe',
-            'niveau_id' => 'required_if:type,niveau|nullable|exists:niveaux,id',
-            'classe_id' => 'required_if:type,classe|nullable|exists:classes,id',
-            'statut' => 'nullable|in:tous,Nouveau,Ancien,Redoublant',
-            'format' => 'required|in:pdf,excel',
+{
+    $request->validate([
+        'type_rapport' => 'required|in:general,mensuel,categorie',
+        'periode_debut' => 'required_if:type_rapport,mensuel|date',
+        'periode_fin' => 'required_if:type_rapport,mensuel|date|after_or_equal:periode_debut',
+        'categorie_id' => 'required_if:type_rapport,categorie|exists:categories_financieres,id',
+        'format' => 'required|in:pdf,excel',
+    ]);
+    
+    $parametres = Parametre::first();
+    $anneeScolaire = $parametres ? $parametres->annee_scolaire : null;
+    
+    // Construction de la requête
+    $query = Transaction::where('annee_scolaire', $anneeScolaire)
+        ->with(['categorie', 'user']);
+    
+    // Filtres selon le type de rapport
+    switch ($request->type_rapport) {
+        case 'mensuel':
+            $query->whereBetween('date', [
+                Carbon::parse($request->periode_debut), 
+                Carbon::parse($request->periode_fin)
+            ]);
+            break;
+        
+        case 'categorie':
+            $query->where('categorie_id', $request->categorie_id);
+            break;
+    }
+    
+    $transactions = $query->orderBy('date', 'desc')->get();
+    
+    // Calcul du résumé
+    $summary = [
+        'totalRecettes' => $transactions->where('type', 'recette')->sum('montant'),
+        'totalDepenses' => $transactions->where('type', 'depense')->sum('montant'),
+        'solde' => $transactions->where('type', 'recette')->sum('montant') - 
+                   $transactions->where('type', 'depense')->sum('montant')
+    ];
+    
+    // Générer le titre
+    $titre = $this->genererTitreRapport($request->type_rapport, $request->periode_debut, $request->periode_fin, $request->categorie_id);
+    
+    // Export PDF
+    if ($request->format === 'pdf') {
+        $pdf = PDF::loadView('finances.pdf.rapport', [
+            'transactions' => $transactions,
+            'titre' => $titre,
+            'parametres' => $parametres,
+            'summary' => $summary
         ]);
         
-        $parametres = Parametre::first();
-        $anneeScolaire = $parametres ? $parametres->annee_scolaire : null;
-        
-        // Construire la requête selon les filtres
-        $query = Inscription::query()
-            ->where('annee_scolaire', $anneeScolaire)
-            ->with(['eleve', 'classe.niveau']);
-        
-        if ($request->type === 'niveau' && $request->niveau_id) {
-            $query->whereHas('classe', function($q) use ($request) {
-                $q->where('niveau_id', $request->niveau_id);
-            });
-        }
-        
-        if ($request->type === 'classe' && $request->classe_id) {
-            $query->where('classe_id', $request->classe_id);
-        }
-        
-        if ($request->statut && $request->statut !== 'tous') {
-            $query->whereHas('eleve', function($q) use ($request) {
-                $q->where('statut', $request->statut);
-            });
-        }
-        
-        $inscriptions = $query->get();
-        
-        // Générer le rapport (cette partie serait à implémenter avec une bibliothèque PDF ou Excel)
-        if ($request->format === 'pdf') {
-            // Pour l'instant, rediriger avec un message
-            return redirect()->route('inscriptions.rapports')
-                ->with('success', 'La fonctionnalité de génération de PDF sera implémentée ultérieurement.');
-        } else {
-            // Pour l'instant, rediriger avec un message
-            return redirect()->route('inscriptions.rapports')
-                ->with('success', 'La fonctionnalité de génération d\'Excel sera implémentée ultérieurement.');
-        }
+        return $pdf->download('rapport_financier.pdf');
     }
+    
+    // Export Excel
+    if ($request->format === 'excel') {
+        return Excel::download(
+            new FinanceExport($transactions, $request->type_rapport, $titre), 
+            'rapport_financier.xlsx'
+        );
+    }
+}
+
+private function genererTitreRapport($type, $periodeDebut = null, $periodeFin = null, $categorieId = null)
+{
+    $titre = 'Rapport financier ';
+    
+    switch ($type) {
+        case 'mensuel':
+            $debut = Carbon::parse($periodeDebut)->format('d/m/Y');
+            $fin = Carbon::parse($periodeFin)->format('d/m/Y');
+            $titre .= "- Période du $debut au $fin";
+            break;
+        
+        case 'categorie':
+            $categorie = CategorieFinanciere::find($categorieId);
+            $titre .= $categorie ? "- Catégorie {$categorie->nom}" : '';
+            break;
+    }
+    
+    return $titre;
+}
 }

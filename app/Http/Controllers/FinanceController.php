@@ -7,13 +7,14 @@ use App\Models\Inscription;
 use App\Models\Transaction;
 use App\Models\CategorieFinanciere;
 use App\Models\Niveau;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
-use PDF;
-use Maatwebsite\Excel\Facades\Excel;
 use App\Exports\GeneralFinanceExport;
 use App\Exports\MonthlyFinanceExport;
 use App\Exports\CategoryFinanceExport;
+use App\Exports\FinanceExport;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Barryvdh\DomPDF\Facade\Pdf;
+use Maatwebsite\Excel\Facades\Excel;
 use Carbon\Carbon;
 
 class FinanceController extends Controller

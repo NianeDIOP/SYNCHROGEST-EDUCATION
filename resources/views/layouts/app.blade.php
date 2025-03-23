@@ -506,21 +506,49 @@
             
             <hr class="sidebar-divider">
             
-            <div class="sidebar-heading">CONFIGURATION</div>
+            <div class="sidebar-heading">INVENTAIRE</div>
             <div class="nav-item">
-                <a class="nav-link {{ request()->routeIs('matieres.parametres') ? 'active' : '' }}" href="{{ route('matieres.parametres') }}">
-                    <i class="fas fa-fw fa-cogs"></i>
-                    <span>Paramètres</span>
+                <a class="nav-link {{ request()->routeIs('matieres.categories') ? 'active' : '' }}" href="{{ route('matieres.categories') }}">
+                    <i class="fas fa-fw fa-tags"></i>
+                    <span>Catégories</span>
+                </a>
+            </div>
+            <div class="nav-item">
+                <a class="nav-link {{ request()->routeIs('matieres.articles') || request()->routeIs('matieres.showArticle') || request()->routeIs('matieres.editArticle') || request()->routeIs('matieres.nouvelArticle') ? 'active' : '' }}" href="{{ route('matieres.articles') }}">
+                    <i class="fas fa-fw fa-boxes"></i>
+                    <span>Articles</span>
+                </a>
+            </div>
+            <div class="nav-item">
+                <a class="nav-link {{ request()->routeIs('matieres.mouvements') || request()->routeIs('matieres.nouveauMouvement') ? 'active' : '' }}" href="{{ route('matieres.mouvements') }}">
+                    <i class="fas fa-fw fa-exchange-alt"></i>
+                    <span>Mouvements</span>
                 </a>
             </div>
             
             <hr class="sidebar-divider">
             
-            <div class="sidebar-heading">INVENTAIRE</div>
+            <div class="sidebar-heading">FOURNISSEURS</div>
             <div class="nav-item">
-                <a class="nav-link {{ request()->routeIs('matieres.inventaire') ? 'active' : '' }}" href="{{ route('matieres.parametres') }}">
-                    <i class="fas fa-fw fa-boxes"></i>
-                    <span>Gestion Stock</span>
+                <a class="nav-link {{ request()->routeIs('matieres.fournisseurs') || request()->routeIs('matieres.nouveauFournisseur') || request()->routeIs('matieres.editFournisseur') ? 'active' : '' }}" href="{{ route('matieres.fournisseurs') }}">
+                    <i class="fas fa-fw fa-truck"></i>
+                    <span>Gestion fournisseurs</span>
+                </a>
+            </div>
+            
+            <hr class="sidebar-divider">
+            
+            <div class="sidebar-heading">OUTILS</div>
+            <div class="nav-item">
+                <a class="nav-link {{ request()->routeIs('matieres.rapports') ? 'active' : '' }}" href="{{ route('matieres.rapports') }}">
+                    <i class="fas fa-fw fa-chart-bar"></i>
+                    <span>Rapports</span>
+                </a>
+            </div>
+            <div class="nav-item">
+                <a class="nav-link {{ request()->routeIs('matieres.parametres') ? 'active' : '' }}" href="{{ route('matieres.parametres') }}">
+                    <i class="fas fa-fw fa-cogs"></i>
+                    <span>Paramètres</span>
                 </a>
             </div>
         @endif

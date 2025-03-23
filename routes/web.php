@@ -85,7 +85,7 @@ Route::prefix('matieres')->middleware('auth')->group(function () {
     // Articles
     Route::get('/articles', [MatiereController::class, 'articles'])->name('matieres.articles');
     Route::get('/articles/nouveau', [MatiereController::class, 'nouvelArticle'])->name('matieres.nouvelArticle');
-    Route::post('/articles/nouveau', [MatiereController::class, 'enregistrerArticle']);
+    Route::post('/articles/nouveau', [MatiereController::class, 'enregistrerArticle'])->name('matieres.enregistrerArticle');
     Route::get('/articles/{id}', [MatiereController::class, 'showArticle'])->name('matieres.showArticle');
     Route::get('/articles/{id}/edit', [MatiereController::class, 'editArticle'])->name('matieres.editArticle');
     Route::put('/articles/{id}', [MatiereController::class, 'updateArticle'])->name('matieres.updateArticle');
@@ -93,19 +93,19 @@ Route::prefix('matieres')->middleware('auth')->group(function () {
     // Mouvements
     Route::get('/mouvements', [MatiereController::class, 'mouvements'])->name('matieres.mouvements');
     Route::get('/mouvements/nouveau', [MatiereController::class, 'nouveauMouvement'])->name('matieres.nouveauMouvement');
-    Route::post('/mouvements/nouveau', [MatiereController::class, 'enregistrerMouvement']);
+    Route::post('/mouvements/nouveau', [MatiereController::class, 'enregistrerMouvement'])->name('matieres.enregistrerMouvement');
     
     // Fournisseurs
     Route::get('/fournisseurs', [MatiereController::class, 'fournisseurs'])->name('matieres.fournisseurs');
     Route::get('/fournisseurs/nouveau', [MatiereController::class, 'nouveauFournisseur'])->name('matieres.nouveauFournisseur');
-    Route::post('/fournisseurs/nouveau', [MatiereController::class, 'enregistrerFournisseur']);
+    Route::post('/fournisseurs/nouveau', [MatiereController::class, 'enregistrerFournisseur'])->name('matieres.enregistrerFournisseur');
     Route::get('/fournisseurs/{id}/edit', [MatiereController::class, 'editFournisseur'])->name('matieres.editFournisseur');
     Route::put('/fournisseurs/{id}', [MatiereController::class, 'updateFournisseur'])->name('matieres.updateFournisseur');
     
     // Catégories
     Route::get('/categories', [MatiereController::class, 'categories'])->name('matieres.categories');
     Route::get('/categories/nouvelle', [MatiereController::class, 'nouvelleCategorie'])->name('matieres.nouvelleCategorie');
-    Route::post('/categories/nouvelle', [MatiereController::class, 'enregistrerCategorie']);
+    Route::post('/categories/nouvelle', [MatiereController::class, 'enregistrerCategorie'])->name('matieres.enregistrerCategorie');
     
     // Rapports
     Route::get('/rapports', [MatiereController::class, 'rapports'])->name('matieres.rapports');

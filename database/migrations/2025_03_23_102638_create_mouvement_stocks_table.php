@@ -16,7 +16,7 @@ return new class extends Migration
             $table->date('date_mouvement');
             $table->string('motif')->nullable();
             $table->string('reference_document')->nullable();
-            $table->foreignId('fournisseur_id')->nullable()->constrained();
+            $table->unsignedBigInteger('fournisseur_id')->nullable(); // Supprimez la contrainte constrained()
             $table->string('destinataire')->nullable();
             $table->foreignId('user_id')->constrained();
             $table->timestamps();
