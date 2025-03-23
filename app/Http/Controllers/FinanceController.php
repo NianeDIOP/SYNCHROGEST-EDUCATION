@@ -394,170 +394,76 @@ class FinanceController extends Controller
     
     public function genererRapport(Request $request)
     {
-        \Log::info('Demande de rapport financier', [
-            'type_rapport' => $request->type_rapport,
-            'format' => $request->format
-        ]);
-        
         $request->validate([
             'type_rapport' => 'required|in:general,mensuel,categorie',
             'periode_debut' => 'required_if:type_rapport,mensuel|date',
             'periode_fin' => 'required_if:type_rapport,mensuel|date|after_or_equal:periode_debut',
-            'categorie_id' => 'required_if:type_rapport,categorie|exists:categories_financieres,id',
-            'format' => 'required|in:pdf,excel',
+            'categorie_id' => 'required_if:type_rapport,categorie|exists:categories_financieres,id'
         ]);
         
         $parametres = Parametre::first();
         $anneeScolaire = $parametres ? $parametres->annee_scolaire : null;
         
-        try {
-            // Générer le rapport selon le type demandé
-            switch ($request->type_rapport) {
-                case 'general':
-                    return $this->genererRapportGeneral($request->format, $anneeScolaire, $parametres);
-                    
-                case 'mensuel':
-                    return $this->genererRapportMensuel(
-                        $request->format, 
-                        $anneeScolaire, 
-                        $parametres, 
-                        $request->periode_debut, 
-                        $request->periode_fin
-                    );
-                    
-                case 'categorie':
-                    return $this->genererRapportCategorie(
-                        $request->format, 
-                        $anneeScolaire, 
-                        $parametres, 
-                        $request->categorie_id
-                    );
-                    
-                default:
-                    \Log::error('Type de rapport non reconnu', ['type' => $request->type_rapport]);
-                    return redirect()->back()->with('error', 'Type de rapport non reconnu.');
-            }
-        } catch (\Exception $e) {
-            \Log::error('Erreur lors de la génération du rapport', [
-                'message' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
-            return redirect()->back()->with('error', 'Une erreur est survenue lors de la génération du rapport: ' . $e->getMessage());
+        // Construction de la requête
+        $query = Transaction::where('annee_scolaire', $anneeScolaire)
+            ->with(['categorie', 'user']);
+        
+        // Initialisation des données
+        $data = [
+            'type_rapport' => $request->type_rapport,
+            'anneeScolaire' => $anneeScolaire,
+            'date_generation' => now()->format('d/m/Y H:i')
+        ];
+        
+        // Titre par défaut
+        $titre = 'Rapport Financier';
+        
+        // Appliquer les filtres selon le type de rapport
+        switch ($request->type_rapport) {
+            case 'general':
+                $titre .= ' Général';
+                break;
+                
+            case 'mensuel':
+                $debut = Carbon::parse($request->periode_debut);
+                $fin = Carbon::parse($request->periode_fin);
+                $query->whereBetween('date', [$debut, $fin]);
+                $titre .= ' du ' . $debut->format('d/m/Y') . ' au ' . $fin->format('d/m/Y');
+                $data['periode'] = [
+                    'debut' => $debut,
+                    'fin' => $fin
+                ];
+                break;
+                
+            case 'categorie':
+                $categorie = CategorieFinanciere::findOrFail($request->categorie_id);
+                $query->where('categorie_id', $request->categorie_id);
+                $titre .= ' - Catégorie ' . $categorie->nom;
+                $data['categorie'] = $categorie;
+                break;
         }
+        
+        // Récupérer les transactions
+        $transactions = $query->orderBy('date', 'desc')->get();
+        
+        // Calculer les totaux
+        $totalRecettes = $transactions->where('type', 'recette')->sum('montant');
+        $totalDepenses = $transactions->where('type', 'depense')->sum('montant');
+        $solde = $totalRecettes - $totalDepenses;
+        
+        // Compléter les données pour la vue
+        $data = array_merge($data, [
+            'titre' => $titre,
+            'transactions' => $transactions,
+            'totalRecettes' => $totalRecettes,
+            'totalDepenses' => $totalDepenses,
+            'solde' => $solde
+        ]);
+        
+        // Retourner la vue avec les données
+        return view('finances.rapport_simple', [
+            'data' => $data,
+            'parametres' => $parametres
+        ]);
     }
-    
-private function genererRapportGeneral($format, $anneeScolaire, $parametres)
-{
-    // Récupérer les données
-    $totalRecettes = Transaction::where('type', 'recette')
-        ->where('annee_scolaire', $anneeScolaire)
-        ->sum('montant');
-        
-    $totalDepenses = Transaction::where('type', 'depense')
-        ->where('annee_scolaire', $anneeScolaire)
-        ->sum('montant');
-        
-    $solde = $totalRecettes - $totalDepenses;
-    
-    $transactions = Transaction::where('annee_scolaire', $anneeScolaire)
-        ->with('categorie')
-        ->orderBy('date', 'desc')
-        ->get();
-    
-    // Préparer les données pour la vue rapport_simple
-    $data = [
-        'type_rapport' => 'general',
-        'titre' => 'Rapport Financier Général',
-        'anneeScolaire' => $anneeScolaire,
-        'transactions' => $transactions,
-        'totalRecettes' => $totalRecettes,
-        'totalDepenses' => $totalDepenses,
-        'solde' => $solde,
-        'date_generation' => now()->format('d/m/Y H:i')
-    ];
-    
-    // Retourner la vue directement
-    return view('finances.rapport_simple', [
-        'data' => $data,
-        'parametres' => $parametres
-    ]);
-}
-    
-private function genererRapportMensuel($format, $anneeScolaire, $parametres, $periodeDebut, $periodeFin)
-{
-    // Convertir les dates
-    $debut = Carbon::parse($periodeDebut);
-    $fin = Carbon::parse($periodeFin);
-    
-    // Récupérer les données
-    $transactions = Transaction::where('annee_scolaire', $anneeScolaire)
-        ->whereBetween('date', [$debut, $fin])
-        ->with('categorie')
-        ->orderBy('date', 'desc')
-        ->get();
-        
-    $totalRecettes = $transactions->where('type', 'recette')->sum('montant');
-    $totalDepenses = $transactions->where('type', 'depense')->sum('montant');
-    $solde = $totalRecettes - $totalDepenses;
-    
-    // Titre du rapport
-    $titre = 'Rapport Financier du ' . $debut->format('d/m/Y') . ' au ' . $fin->format('d/m/Y');
-    
-    // Préparer les données pour la vue rapport_simple
-    $data = [
-        'type_rapport' => 'mensuel',
-        'titre' => $titre,
-        'anneeScolaire' => $anneeScolaire,
-        'transactions' => $transactions,
-        'totalRecettes' => $totalRecettes,
-        'totalDepenses' => $totalDepenses,
-        'solde' => $solde,
-        'periode' => [
-            'debut' => $debut,
-            'fin' => $fin
-        ],
-        'date_generation' => now()->format('d/m/Y H:i')
-    ];
-    
-    // Retourner la vue directement
-    return view('finances.rapport_simple', [
-        'data' => $data,
-        'parametres' => $parametres
-    ]);
-}
-    
-private function genererRapportCategorie($format, $anneeScolaire, $parametres, $categorieId)
-{
-    // Récupérer la catégorie
-    $categorie = CategorieFinanciere::findOrFail($categorieId);
-    
-    // Récupérer les transactions
-    $transactions = Transaction::where('annee_scolaire', $anneeScolaire)
-        ->where('categorie_id', $categorieId)
-        ->orderBy('date', 'desc')
-        ->get();
-    
-    // Calculer le total
-    $total = $transactions->sum('montant');
-    
-    // Titre du rapport
-    $titre = 'Rapport Financier - Catégorie ' . $categorie->nom;
-    
-    // Préparer les données pour la vue rapport_simple
-    $data = [
-        'type_rapport' => 'categorie',
-        'titre' => $titre,
-        'anneeScolaire' => $anneeScolaire,
-        'transactions' => $transactions,
-        'categorie' => $categorie,
-        'total' => $total,
-        'date_generation' => now()->format('d/m/Y H:i')
-    ];
-    
-    // Retourner la vue directement
-    return view('finances.rapport_simple', [
-        'data' => $data,
-        'parametres' => $parametres
-    ]);
-}
 }
