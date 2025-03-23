@@ -9,7 +9,7 @@
         <h6 class="m-0 font-weight-bold text-primary">Génération de rapports financiers</h6>
     </div>
     <div class="card-body">
-        <form action="{{ route('finances.genererRapport') }}" method="POST" id="rapportForm">
+        <form action="{{ route('finances.genererRapport') }}" method="POST" id="rapportForm" target="_blank">
             @csrf
             <div class="row mb-4">
                 <div class="col-md-4 mb-3">
